@@ -32,7 +32,11 @@ static Str readFile(const Str& path){
 
 // ============================== LEXER =====================================
 // Convierte texto fuente en un stream de tokens.
-enum class Tok { End, LBrack, RBrack, LPar, RPar, Comma, Eq, Ident, Number, String, True, False };
+enum class Tok { 
+    End, LBrack, RBrack, LPar, RPar, Comma, Eq, 
+    Ident, Number, String, True, False,
+    LBrace, RBrace, Colon, Null, Enum, Struct
+};
 
 static const char* tokName(Tok t){
     switch(t){
@@ -47,7 +51,13 @@ static const char* tokName(Tok t){
         case Tok::Number: return "NUMBER";
         case Tok::String: return "STRING";
         case Tok::True:   return "TRUE";
-        case Tok::False:  return "FALSE";
+        case Tok::False:  return "FALSE";case Tok::LBrace: return "{";
+case Tok::RBrace: return "}";
+case Tok::Colon:  return ":";
+case Tok::Null:   return "NULL";
+case Tok::Enum:   return "ENUM";
+case Tok::Struct: return "STRUCT";
+
     }
     return "?";
 }
@@ -92,6 +102,9 @@ public:
         if (c==')'){ get(); k.t=Tok::RPar;   return k; }
         if (c==','){ get(); k.t=Tok::Comma;  return k; }
         if (c=='='){ get(); k.t=Tok::Eq;     return k; }
+        if (c=='{'){ get(); k.t=Tok::LBrace; return k; }
+if (c=='}'){ get(); k.t=Tok::RBrace; return k; }
+if (c==':'){ get(); k.t=Tok::Colon;  return k; }
 
         // String con escapes básicos
         if (c=='"'){
@@ -119,11 +132,15 @@ public:
 
         // Ident o booleano (true/false). Permitimos '.' en el nombre
         if (isIdStart(c)){
-            Str id; id.push_back(get()); while (isIdChar(peek())) id.push_back(get());
-            if (id=="true")  { k.t=Tok::True;  k.lex=id; return k; }
-            if (id=="false") { k.t=Tok::False; k.lex=id; return k; }
-            k.t=Tok::Ident; k.lex=id; return k;
-        }
+    Str id; id.push_back(get());
+    while (isIdChar(peek())) id.push_back(get());
+    if (id=="true")   { k.t=Tok::True;  k.lex=id; return k; }
+    if (id=="false")  { k.t=Tok::False; k.lex=id; return k; }
+    if (id=="null")   { k.t=Tok::Null;  k.lex=id; return k; }
+    if (id=="enum")   { k.t=Tok::Enum;  k.lex=id; return k; }
+    if (id=="struct") { k.t=Tok::Struct;k.lex=id; return k; }
+    k.t=Tok::Ident; k.lex=id; return k;
+}
 
         // Carácter inesperado
         ostringstream msg; msg<<"Caracter inesperado '"<<c<<"' en linea "<<loc.line<<", col "<<loc.col;
@@ -163,6 +180,42 @@ struct Section : Stmt { Str name; Vec<UP<Stmt>> body;
     void print(OS& os,int n) const override { pad(os,n); os<<"(Section "<<name<<"\n"; for(auto& s: body) s->print(os,n+2); pad(os,n); os<<")\n"; } };
 struct Program : Node { Vec<UP<Stmt>> items;
     void print(OS& os,int n) const override { pad(os,n); os<<"(Program\n"; for(auto& s: items) s->print(os,n+2); pad(os,n); os<<")\n"; } };
+struct ValNull : Expr {
+    void print(OS& os,int n) const override { pad(os,n); os<<"(Null)\n"; }
+};
+
+struct ValObject : Expr { Vec<pair<Str,UP<Expr>>> fields;
+    void print(OS& os,int n) const override {
+        pad(os,n); os<<"(Object\n";
+        for(auto& kv: fields){
+            pad(os,n+2); os<<"(Field "<<kv.first<<"\n";
+            kv.second->print(os,n+4);
+            pad(os,n+2); os<<")\n";
+        }
+        pad(os,n); os<<")\n";
+    }
+};
+
+struct EnumDef : Stmt { Str name; Vec<pair<Str,double>> values;
+    void print(OS& os,int n) const override {
+        pad(os,n); os<<"(Enum "<<name<<"\n";
+        for(auto& kv: values){
+            pad(os,n+2); os<<"("<<kv.first<<" = "<<kv.second<<")\n";
+        }
+        pad(os,n); os<<")\n";
+    }
+};
+
+struct StructDef : Stmt { Str name; Vec<Str> fields;
+    void print(OS& os,int n) const override {
+        pad(os,n); os<<"(Struct "<<name<<"\n";
+        for(auto& f: fields){
+            pad(os,n+2); os<<"(Field "<<f<<")\n";
+        }
+        pad(os,n); os<<")\n";
+    }
+};
+
 
 // =============================== PARSER 1.0 ===================================
 // Implementa gramática .brik:
@@ -209,6 +262,9 @@ class Parser {
             case Tok::Ident:  { Str s = cur.lex;  cur = L.next(); return UP<Expr>(new ValIdent(move(s))); }
             case Tok::LPar:   return parseTuple();
             case Tok::LBrack: return parseList();
+            case Tok::Null:   { cur = L.next(); return UP<Expr>(new ValNull()); }
+            case Tok::LBrace: return parseObject();
+
             default: { ostringstream m; m<<"Expresion invalida en linea "<<cur.loc.line; throw runtime_error(m.str()); }
         }
     }
@@ -235,16 +291,80 @@ class Parser {
         eat(Tok::RBrack, "']'"); return UP<Expr>(v.release());
     }
 
+    // object := '{' (IDENT ':' expr (',' IDENT ':' expr)*)? '}'
+    UP<Expr> parseObject(){
+        eat(Tok::LBrace,"'{'");
+        auto obj = UP<ValObject>(new ValObject());
+        if (cur.t != Tok::RBrace){
+            do {
+                if (cur.t != Tok::Ident) expectFail("identificador de campo");
+                Str key = cur.lex; cur = L.next();
+                eat(Tok::Colon, "':'");
+                auto val = parseExpr();
+                obj->fields.emplace_back(move(key), move(val));
+                if (cur.t == Tok::Comma) cur = L.next();
+                else break;
+            }
+            while(true);
+        }
+        eat(Tok::RBrace,"'}'");
+        return UP<Expr>(obj.release());
+    }
+
+    UP<Stmt> parseEnum(){
+    eat(Tok::Enum,"'enum'");
+    if (cur.t != Tok::Ident) expectFail("nombre de enum");
+    Str name = cur.lex; cur = L.next();
+    eat(Tok::LBrace,"'{'");
+    auto e = UP<EnumDef>(new EnumDef()); e->name = move(name);
+    while (cur.t == Tok::Ident){
+        Str key = cur.lex; cur = L.next();
+        eat(Tok::Colon, "':'");
+        if (cur.t != Tok::Number) expectFail("valor numérico");
+        double val = cur.num; cur = L.next();
+        e->values.emplace_back(move(key), val);
+        if (cur.t == Tok::Comma) cur = L.next(); else break;
+    }
+    eat(Tok::RBrace,"'}'");
+    return e;
+}
+
+UP<Stmt> parseStruct(){
+    eat(Tok::Struct,"'struct'");
+    if (cur.t != Tok::Ident) expectFail("nombre de struct");
+    Str name = cur.lex; cur = L.next();
+    eat(Tok::LBrace,"'{'");
+    auto s = UP<StructDef>(new StructDef()); s->name = move(name);
+    while (cur.t == Tok::Ident){
+        s->fields.push_back(cur.lex);
+        cur = L.next();
+        if (cur.t == Tok::Comma) cur = L.next();
+        else if (cur.t == Tok::RBrace) break;
+        else if (cur.t == Tok::Eq || cur.t == Tok::Colon){ 
+            // permite "campo;" o "campo: valor"
+            cur = L.next(); parseExpr();
+            if (cur.t == Tok::Comma) cur = L.next();
+        }
+    }
+    eat(Tok::RBrace,"'}'");
+    return s;
+}
+
+
+
+
 public:
     explicit Parser(const Str& src): L(src) { cur = L.next(); }
 
-    // file := (section | assign)* End
+    // file := (section | assign | enum | struct)* End
     UP<Program> parse(){
         auto p = UP<Program>(new Program());
         while (cur.t != Tok::End){
-            if      (cur.t == Tok::LBrack) p->items.emplace_back(parseSection());
-            else if (cur.t == Tok::Ident)  p->items.emplace_back(parseAssign());
-            else { ostringstream m; m<<"Token inesperado antes de una seccion o asignacion en linea "<<cur.loc.line; throw runtime_error(m.str()); }
+            if      (cur.t == Tok::LBrack)  p->items.emplace_back(parseSection());
+            else if (cur.t == Tok::Ident)   p->items.emplace_back(parseAssign());
+            else if (cur.t == Tok::Enum)    p->items.emplace_back(parseEnum());
+            else if (cur.t == Tok::Struct)  p->items.emplace_back(parseStruct());
+            else { ostringstream m; m<<"Token inesperado en linea "<<cur.loc.line; throw runtime_error(m.str()); }
         }
         return p;
     }
