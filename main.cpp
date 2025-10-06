@@ -250,6 +250,18 @@ public:
     }
 };
 
+// =========================== Dumper de Tokens ================================
+static void dumpTokens(const Str& src, ostream& os){
+    Lexer L(src);
+    Token t;
+    do {
+        t = L.next();
+        os << tokName(t.t);
+        if(!t.lex.empty()) os << "('" << t.lex << "')";
+        os << " @line " << t.loc.line << "\n";
+    } while(t.t != Tok::End);
+}
+
 // =========================== Printer + CLI ================================
 static void writeAST(const Program& p, const Str& out){
     ofstream o(out, ios::binary);
