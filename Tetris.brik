@@ -1,13 +1,13 @@
 // =============================================
 // ARCHIVO DE CONFIGURACIÓN: TETRIS.BRIK
-// Motor de Juegos de Ladrillos - Versión 1.0
+// Motor de Juegos de Ladrillos - Versión 1.2
 // =============================================
 
 // TIPOS PRIMITIVOS
 nombre_juego = "Tetris Clásico"
 version = 1.2
 autor = "Equipo BrickEngine"
-fecha_lanzamiento = "2024-11-20"
+fecha_lanzamiento = "2025-05-10"
 
 // CONFIGURACIÓN DE PANTALLA
 ancho_pantalla = 800
