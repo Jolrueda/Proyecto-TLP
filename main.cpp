@@ -1,17 +1,13 @@
-// -----------------------------------------------------------------------------
-// Analizador .brik — Lexer + Parser + AST + Serializador 1.0
-// CLI:
-//   analizador input.brik [-o arbol.ast] [--tokens] [--tokfile tokens.txt] [--no-ast]
-// -----------------------------------------------------------------------------
-#include <cctype>
-#include <cstdlib>
-#include <fstream>
 #include <iostream>
-#include <memory>
-#include <sstream>
-#include <stdexcept>
-#include <string>
+#include <stdlib.h>
 #include <vector>
+#include <fstream>
+#include <string>
+#include <map>
+#include <sstream>
+#include <algorithm>
+#include <cctype>
+
 
 using namespace std;
 
@@ -517,4 +513,5 @@ int main(int argc, char** argv) {
         cerr << e.what() << endl;
         return 1;
     }
+    return 0;
 }
