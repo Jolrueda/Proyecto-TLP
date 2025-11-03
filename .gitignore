@@ -1,0 +1,36 @@
+# ========================================
+# Motor de Ladrillos - .gitignore
+# ========================================
+
+# Archivos compilados
+bin/*.exe
+build/*.o
+build/*.obj
+build/arbol.ast
+
+# Archivos de sistema
+*.tmp
+*.log
+Thumbs.db
+.DS_Store
+
+# Configuración de IDEs
+.vscode/launch.json
+.vscode/tasks.json
+*.vcxproj*
+*.sln
+*.user
+
+# Archivos de backup
+*~
+*.bak
+*.backup
+
+# Archivos temporales del compilador
+*.d
+*.pdb
+*.ilk
+
+# Mantener directorios vacíos
+!build/.gitkeep
+!bin/.gitkeep

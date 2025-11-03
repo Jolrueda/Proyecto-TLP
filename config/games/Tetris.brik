@@ -1,0 +1,360 @@
+// =============================================
+// ARCHIVO DE CONFIGURACIÓN: TETRIS.BRIK
+// Motor de Juegos de Ladrillos - Versión 1.2
+// =============================================
+
+// TIPOS PRIMITIVOS
+nombre_juego = "Tetris Clásico"
+version = 1.2
+autor = "Equipo BrickEngine"
+fecha_lanzamiento = "2025-05-10"
+
+// CONFIGURACIÓN DE PANTALLA
+ancho_pantalla = 800
+alto_pantalla = 600
+color_fondo = "negro"
+fullscreen = false
+
+// CONFIGURACIÓN DEL TABLERO
+ancho_tablero = 10
+alto_tablero = 20
+tamanio_celda = 30
+color_borde = "blanco"
+grosor_borde = 2
+
+// SISTEMA DE JUEGO
+vidas_iniciales = 1
+nivel_inicial = 1
+puntos_por_nivel = 1000
+velocidad_inicial = 800
+aceleracion_por_nivel = 50
+velocidad_caida_rapida = 50
+tiempo_fijacion_pieza = 1000
+
+// SISTEMA DE PUNTUACIÓN
+puntos_linea_simple = 100
+puntos_linea_doble = 300
+puntos_linea_triple = 500
+puntos_linea_tetris = 800
+puntos_giro_exitoso = 10
+puntos_caida_rapida = 1
+puntos_por_movimiento = 0
+total_puntos = 0
+bonus_nivel_completo = 1000
+
+
+// PALETA DE COLORES - Mapeo directo por pieza
+colores_piezas = {
+    I: "cian",      // Pieza I - Línea
+    J: "azul",      // Pieza J 
+    L: "naranja",   // Pieza L
+    O: "amarillo",  // Pieza O - Cuadrado
+    S: "verde",     // Pieza S
+    Z: "rojo",      // Pieza Z
+    T: "magenta"    // Pieza T
+}
+
+// CÓDIGOS DE COLOR PARA CONSOLA
+codigos_color = {
+    cian: 11,
+    azul: 9,
+    naranja: 12,
+    amarillo: 14,
+    verde: 10,
+    rojo: 12,
+    magenta: 13,
+    blanco: 15,
+    gris: 8
+}
+
+// DEFINICIÓN DE PIEZAS CON TODAS SUS ROTACIONES
+piezas_rotaciones = {
+    // Pieza I - Línea (4 rotaciones)
+    I: [
+        // Rotación 0: Horizontal
+        [
+            [0,0,0,0],
+            [1,1,1,1],
+            [0,0,0,0],
+            [0,0,0,0]
+        ],
+        // Rotación 1: Vertical
+        [
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,1,0,0]
+        ],
+        // Rotación 2: Horizontal
+        [
+            [0,0,0,0],
+            [1,1,1,1],
+            [0,0,0,0],
+            [0,0,0,0]
+        ],
+        // Rotación 3: Vertical
+        [
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,1,0,0],
+            [0,1,0,0]
+        ]
+    ],
+    
+    // Pieza J (4 rotaciones)
+    J: [
+        // Rotación 0
+        [
+            [1,0,0],
+            [1,1,1],
+            [0,0,0]
+        ],
+        // Rotación 1
+        [
+            [0,1,1],
+            [0,1,0],
+            [0,1,0]
+        ],
+        // Rotación 2
+        [
+            [0,0,0],
+            [1,1,1],
+            [0,0,1]
+        ],
+        // Rotación 3
+        [
+            [0,1,0],
+            [0,1,0],
+            [1,1,0]
+        ]
+    ],
+    
+    // Pieza L (4 rotaciones)
+    L: [
+        // Rotación 0
+        [
+            [0,0,1],
+            [1,1,1],
+            [0,0,0]
+        ],
+        // Rotación 1
+        [
+            [0,1,0],
+            [0,1,0],
+            [0,1,1]
+        ],
+        // Rotación 2
+        [
+            [0,0,0],
+            [1,1,1],
+            [1,0,0]
+        ],
+        // Rotación 3
+        [
+            [1,1,0],
+            [0,1,0],
+            [0,1,0]
+        ]
+    ],
+    
+    // Pieza O - Cuadrado (no rota, 4 estados iguales)
+    O: [
+        [
+            [1,1],
+            [1,1]
+        ],
+        [
+            [1,1],
+            [1,1]
+        ],
+        [
+            [1,1],
+            [1,1]
+        ],
+        [
+            [1,1],
+            [1,1]
+        ]
+    ],
+    
+    // Pieza S (4 rotaciones)
+    S: [
+        // Rotación 0
+        [
+            [0,1,1],
+            [1,1,0],
+            [0,0,0]
+        ],
+        // Rotación 1
+        [
+            [0,1,0],
+            [0,1,1],
+            [0,0,1]
+        ],
+        // Rotación 2
+        [
+            [0,1,1],
+            [1,1,0],
+            [0,0,0]
+        ],
+        // Rotación 3
+        [
+            [0,1,0],
+            [0,1,1],
+            [0,0,1]
+        ]
+    ],
+    
+    // Pieza Z (4 rotaciones)
+    Z: [
+        // Rotación 0
+        [
+            [1,1,0],
+            [0,1,1],
+            [0,0,0]
+        ],
+        // Rotación 1
+        [
+            [0,0,1],
+            [0,1,1],
+            [0,1,0]
+        ],
+        // Rotación 2
+        [
+            [1,1,0],
+            [0,1,1],
+            [0,0,0]
+        ],
+        // Rotación 3
+        [
+            [0,0,1],
+            [0,1,1],
+            [0,1,0]
+        ]
+    ],
+    
+    // Pieza T (4 rotaciones)
+    T: [
+        // Rotación 0
+        [
+            [0,1,0],
+            [1,1,1],
+            [0,0,0]
+        ],
+        // Rotación 1
+        [
+            [0,1,0],
+            [0,1,1],
+            [0,1,0]
+        ],
+        // Rotación 2
+        [
+            [0,0,0],
+            [1,1,1],
+            [0,1,0]
+        ],
+        // Rotación 3
+        [
+            [0,1,0],
+            [1,1,0],
+            [0,1,0]
+        ]
+    ]
+}
+
+// TIPOS DE PIEZAS DISPONIBLES
+tipos_piezas = ["I", "J", "L", "O", "S", "Z", "T"]
+numero_rotaciones_por_pieza = 4
+
+// COMPORTAMIENTO ESPECIAL
+modo_fantasma = true
+guardar_pieza = true
+max_piezas_guardadas = 1
+nivel_maximo = 15
+lineas_para_nivel = 10
+
+// EFECTOS VISUALES Y SONIDO
+animacion_limpieza = true
+duracion_animacion = 200
+sonido_rotar = "click.wav"
+sonido_tetris = "fanfarria.wav"
+musica_fondo = "tetris_theme.mod"
+
+// CONFIGURACIÓN DE CONTROLES
+tecla_izquierda = "a"
+tecla_derecha = "d"
+tecla_abajo = "s"
+tecla_arriba = "w"
+tecla_rotar = "r"
+tecla_guardar = "c"
+tecla_pausa = "p"
+tecla_reiniciar = "r"
+tecla_salir = "esc"
+
+// SISTEMA DE MENSAJES
+mensaje_inicio = "¡PREPARATE PARA EL TETRIS!"
+mensaje_pausa = "PAUSA - Presiona P para continuar"
+mensaje_game_over = "¡GAME OVER! - Puntuación Final: {puntos}"
+mensaje_reiniciar = "Presiona R para reiniciar"
+mensaje_nivel = "¡NIVEL {nivel} ALCANZADO!"
+mensaje_lineas = "Líneas: {lineas}"
+
+// CONFIGURACIÓN DE DIFICULTAD
+gravedad_automatica = true
+tiempo_antes_de_bloquear = 1000
+permite_rotar_en_bordes = true
+castigo_lineas_incompletas = false
+
+// SISTEMA DE POWER-UPS (TIPO ENUM)
+enum TipoPowerUp {
+    LIMPIAR_FILA_ALEATORIA : 1,
+    RALENTIZAR_TIEMPO : 2,
+    PIEZA_ESPECIAL : 3,
+    BONUS_PUNTOS : 4
+}
+
+// CONFIGURACIÓN POWER-UPS
+powerups_activados = false
+probabilidad_powerup = 0.1
+tipos_powerups = [1, 2, 3, 4]   // en tipado débil aceptamos números directos
+
+// CONSTANTES FÍSICAS DEL JUEGO
+gravedad_base = 9.8
+friccion_rotacion = 0.85
+velocidad_maxima = 1000.0
+
+// ESTRUCTURA DE NIVELES (estructura ligera — campos sin tipos explícitos)
+struct ConfigNivel {
+    nivel;
+    velocidad;
+    puntos_requeridos;
+    color_fondo;
+}
+
+niveles = [
+    { nivel: 1, velocidad: 500, puntos_requeridos: 0, color_fondo: "azul_oscuro" },
+    { nivel: 2, velocidad: 450, puntos_requeridos: 1000, color_fondo: "verde_oscuro" },
+    { nivel: 3, velocidad: 400, puntos_requeridos: 2500, color_fondo: "rojo_oscuro" },
+    { nivel: 4, velocidad: 350, puntos_requeridos: 5000, color_fondo: "morado_oscuro" },
+    { nivel: 5, velocidad: 300, puntos_requeridos: 10000, color_fondo: "naranja_oscuro" }
+]
+
+
+// VALIDACIONES DEL JUEGO
+min_ancho_tablero = 5
+max_ancho_tablero = 20
+min_alto_tablero = 10
+max_alto_tablero = 40
+min_velocidad = 50
+max_velocidad = 2000
+
+// MÉTRICAS Y ESTADÍSTICAS
+guardar_estadisticas = true
+max_puntuacion_guardada = 10
+metricas_seguimiento = [
+    "puntos_totales",
+    "lineas_completadas", 
+    "nivel_maximo",
+    "tiempo_jugado"
+]
+

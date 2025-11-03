@@ -429,10 +429,62 @@ void printAstMap(const map<string, string>& m, ostream& out, int indent=0) {
 
 int main(int argc, char** argv) {
     try {
-        string nombreArchivo = "Tetris.brik";
-        if (argc >= 2) nombreArchivo = argv[1];
+        string nombreArchivo;
+        
+        // Si se pasa argumento, usar ese archivo
+        if (argc >= 2) {
+            // Soportar atajos por nombre de juego: "tetris" o "snake"
+            string arg = argv[1];
+            // normalizar a minuscula
+            transform(arg.begin(), arg.end(), arg.begin(), [](unsigned char c){ return (char)tolower(c); });
+            if (arg == "tetris" || arg == "t") {
+                nombreArchivo = "config/games/Tetris.brik";
+                cout << "Compilando Tetris.brik..." << endl;
+            } else if (arg == "snake" || arg == "s") {
+                nombreArchivo = "config/games/Snake.brik";
+                cout << "Compilando Snake.brik..." << endl;
+            } else {
+                // Se asume que es una ruta a archivo .brik
+                nombreArchivo = argv[1];
+            }
+        }
+        // Si no, mostrar menú de selección
+        else {
+            cout << "============================================" << endl;
+            cout << "    COMPILADOR MOTOR DE LADRILLOS" << endl;
+            cout << "============================================" << endl;
+            cout << "Selecciona el juego a compilar:" << endl;
+            cout << "  1. Tetris.brik" << endl;
+            cout << "  2. Snake.brik" << endl;
+            cout << "  3. Archivo personalizado" << endl;
+            cout << "Opcion (1-3): ";
+            
+            int opcion;
+            cin >> opcion;
+            
+            switch(opcion) {
+                case 1:
+                    nombreArchivo = "config/games/Tetris.brik";
+                    cout << "Compilando Tetris.brik..." << endl;
+                    break;
+                case 2:
+                    nombreArchivo = "config/games/Snake.brik";
+                    cout << "Compilando Snake.brik..." << endl;
+                    break;
+                case 3:
+                    cout << "Ingresa la ruta del archivo .brik: ";
+                    cin >> nombreArchivo;
+                    break;
+                default:
+                    cout << "Opcion invalida. Usando Tetris.brik por defecto." << endl;
+                    nombreArchivo = "config/games/Tetris.brik";
+                    break;
+            }
+            cout << endl;
+        }
 
         string contenido = cargarArchivo(nombreArchivo);
+        
         AnalizadorLexico lexer(contenido);
         vector<Token> tokens = lexer.tokenizar();
 
@@ -498,16 +550,17 @@ int main(int argc, char** argv) {
         cout << endl;
 
         // Escribir arbol.ast
-        ofstream out("arbol.ast");
+        ofstream out("build/arbol.ast");
         if (!out.is_open()) {
-            cerr << "No se pudo crear arbol.ast" << endl;
+            cerr << "No se pudo crear build/arbol.ast" << endl;
             return 1;
         }
         printAstMap(ast, out, 0);
         out << endl;
         out.close();
 
-        cout << "\nAST guardado en arbol.ast" << endl;
+        cout << "\nAST guardado en build/arbol.ast" << endl;
+        cout << "Compilacion completada para: " << nombreArchivo << endl;
 
     } catch (const runtime_error& e) {
         cerr << e.what() << endl;

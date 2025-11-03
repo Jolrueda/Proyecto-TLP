@@ -1,0 +1,106 @@
+// =============================================
+// ARCHIVO DE CONFIGURACIÓN: SNAKE.BRIK
+// Juego Snake Mejorado - Versión 2.0
+// =============================================
+
+// META - Información del juego
+nombre_juego = "Snake Clásico"
+version = 2.0
+autor = "Equipo BrickEngine"
+fecha_lanzamiento = "2025-10-30"
+
+// CONFIGURACIÓN DE PANTALLA
+ancho_pantalla = 800
+alto_pantalla = 600
+color_fondo = "negro"
+fullscreen = false
+
+// CONFIGURACIÓN DEL TABLERO
+ancho_tablero = 25
+alto_tablero = 20
+tamanio_celda = 20
+color_borde = "blanco"
+grosor_borde = 2
+
+// CONFIGURACIÓN DE SNAKE
+longitud_inicial = 3
+direccion_inicial = "derecha"
+posicion_inicial_x = 12
+posicion_inicial_y = 10
+velocidad_inicial = 150
+crecimiento_por_fruta = 1
+
+// COLORES DEL JUEGO
+colores_snake = [
+    "verde_claro",    // cabeza
+    "verde_oscuro",   // cuerpo  
+    "verde_medio"     // cola
+]
+color_fruta = "rojo"
+color_obstaculo = "gris"
+
+// CONTROLES
+tecla_arriba = "w"
+tecla_abajo = "s"
+tecla_izquierda = "a"  
+tecla_derecha = "d"
+tecla_pausa = "p"
+tecla_reiniciar = "r"
+tecla_salir = "esc"
+
+// REGLAS DEL JUEGO
+terminar_al_chocar_cuerpo = true
+terminar_al_chocar_borde = true
+permitir_reversa = false
+pausar_permitido = true
+longitud_maxima = 0
+
+// SISTEMA DE PUNTUACIÓN CORREGIDO
+puntos_por_movimiento = 0        // 0 puntos por moverse (FIX del bug!)
+puntos_por_fruta = 100           // Puntos al comer fruta
+puntos_giro_exitoso = 0          // 0 puntos por girar (FIX del bug!)
+puntos_bonus_velocidad = 10      // Bonus por velocidad
+multiplicador_combo = 1.0
+
+// CONFIGURACIÓN DE FRUTAS
+respawn_fruta_ms = 500
+frutas_simultaneas = 1
+frutas_disponibles = [
+    "manzana",
+    "cereza", 
+    "banana"
+]
+
+// CONFIGURACIÓN DE OBSTÁCULOS
+bordes_solidos = true
+obstaculos_aleatorios = 0
+obstaculos_fijos = []
+
+// CONFIGURACIÓN DE NIVELES
+velocidad_minima = 50
+velocidad_maxima = 300
+aceleracion_por_fruta = 5
+nivel_inicial = 1
+frutas_por_nivel = 5
+
+// CONFIGURACIÓN DE FIN DE JUEGO
+vidas_iniciales = 1
+puntos_vida_extra = 1000
+guardar_puntuacion = true
+
+// EFECTOS VISUALES
+mostrar_cuadricula = true
+animacion_crecimiento = true
+parpadeo_game_over = true
+duracion_parpadeo = 100
+
+// MENSAJES DEL JUEGO
+mensaje_inicio = "¡PRESIONA CUALQUIER TECLA PARA EMPEZAR!"
+mensaje_pausa = "PAUSA - Presiona P para continuar" 
+mensaje_game_over = "GAME OVER - Puntuación: {puntos}"
+mensaje_nueva_fruta = "¡Fruta comida! +{puntos} puntos"
+
+// SISTEMA DE DIFICULTAD PROGRESIVA
+dificultad_progresiva = true
+incremento_velocidad = 10
+max_nivel = 10
