@@ -4,7 +4,7 @@
 // =============================================
 
 // META - Información del juego
-nombre_juego = "Snake Clásico"
+nombre_juego = "Snake Clasico"
 version = 2.0
 autor = "Equipo BrickEngine"
 fecha_lanzamiento = "2025-10-30"
@@ -97,7 +97,7 @@ duracion_parpadeo = 100
 // MENSAJES DEL JUEGO
 mensaje_inicio = "¡PRESIONA CUALQUIER TECLA PARA EMPEZAR!"
 mensaje_pausa = "PAUSA - Presiona P para continuar" 
-mensaje_game_over = "GAME OVER - Puntuación: {puntos}"
+mensaje_game_over = "GAME OVER - Puntuacion: {puntos}"
 mensaje_nueva_fruta = "¡Fruta comida! +{puntos} puntos"
 
 // SISTEMA DE DIFICULTAD PROGRESIVA

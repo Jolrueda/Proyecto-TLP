@@ -4,7 +4,7 @@
 // =============================================
 
 // TIPOS PRIMITIVOS
-nombre_juego = "Tetris Clásico"
+nombre_juego = "Tetris Clasico"
 version = 1.2
 autor = "Equipo BrickEngine"
 fecha_lanzamiento = "2025-05-10"

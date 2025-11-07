@@ -275,22 +275,61 @@ private:
     }
     void configurarRotacionesHardcoded() {
         rotaciones_piezas["I"] = {
-            { {0,0,0,0},{1,1,1,1},{0,0,0,0},{0,0,0,0} },
-            { {0,1,0,0},{0,1,0,0},{0,1,0,0},{0,1,0,0} },
-            { {0,0,0,0},{1,1,1,1},{0,0,0,0},{0,0,0,0} },
-            { {0,1,0,0},{0,1,0,0},{0,1,0,0},{0,1,0,0} }
+            {   {0,0,0,0},
+                {1,1,1,1},
+                {0,0,0,0},
+                {0,0,0,0} },
+
+            {   {0,1,0,0},
+                {0,1,0,0},
+                {0,1,0,0},
+                {0,1,0,0} },
+
+            {   {0,0,0,0},
+                {1,1,1,1},
+                {0,0,0,0},
+                {0,0,0,0} },
+
+            {   {0,1,0,0},
+                {0,1,0,0},
+                {0,1,0,0},
+                {0,1,0,0} }
         };
+
         rotaciones_piezas["J"] = {
-            { {1,0,0},{1,1,1},{0,0,0} },
-            { {0,1,1},{0,1,0},{0,1,0} },
-            { {0,0,0},{1,1,1},{0,0,1} },
-            { {0,1,0},{0,1,0},{1,1,0} }
+            {   {1,0,0},
+                {1,1,1},
+                {0,0,0} },
+
+            {   {0,1,1},
+                {0,1,0},
+                {0,1,0} },
+
+            {   {0,0,0},
+                {1,1,1},
+                {0,0,1} },
+
+            {   {0,1,0},    
+                {0,1,0},
+                {1,1,0} }
         };
+
         rotaciones_piezas["L"] = {
-            { {0,0,1},{1,1,1},{0,0,0} },
-            { {0,1,0},{0,1,0},{0,1,1} },
-            { {0,0,0},{1,1,1},{1,0,0} },
-            { {1,1,0},{0,1,0},{0,1,0} }
+            {   {0,0,1},
+                {1,1,1},    
+                {0,0,0} },
+
+            {   {0,1,0},
+                {0,1,0},
+                {0,1,1} },
+
+            {   {0,0,0},
+                {1,1,1},
+                {1,0,0} },
+
+            {   {1,1,0},
+                {0,1,0},
+                {0,1,0} }
         };
         rotaciones_piezas["O"] = {
             { {1,1},{1,1} }, { {1,1},{1,1} }, { {1,1},{1,1} }, { {1,1},{1,1} }
@@ -635,12 +674,12 @@ public:
         buf << "\033[2J\033[H";
         buf << "\033[37;1m=== Tetris ===           Controles:\033[0m\n";
         buf << "\033[33mPuntos: " << puntos << "                      A/D - Mover\033[0m\n";
-        buf << "\033[33mNivel: "  << nivel  << "                        S - Caída rápida\033[0m\n";
-        buf << "\033[33mLíneas: " << lineas_completadas << "                     W/SPACE - Rotar\033[0m\n";
+        buf << "\033[33mNivel: "  << nivel  << "                        S - Caida rapida\033[0m\n";
+        buf << "\033[33mLineas: " << lineas_completadas << "                     W/SPACE - Rotar\033[0m\n";
         buf << "\033[90m                                  P - Pausa, ESC - Salir\033[0m\n\n";
 
         if (game_over) {
-            buf << "\033[91;1m    ¡GAME OVER!\033[0m\n";
+            buf << "\033[91m    !GAME OVER!\033[0m\n";
             buf << "\033[91m    Puntuacion Final: " << puntos << "\033[0m\n";
             buf << "\033[91m    Presiona R para reiniciar\033[0m\n\n";
         }
@@ -784,19 +823,19 @@ private:
     string             nombre_juego;
 public:
     SnakeEngine()
-        : juego_activo(true)
-        , pausado(false)
-        , game_over(false)
-        , puntos(0)
-        , nivel(1)
-        , generador(random_device{}()) {
+        : juego_activo(true),
+         pausado(false),
+         game_over(false),
+         puntos(0),
+         nivel(1),
+         generador(random_device{}()) {
         cargarConfiguracionAST();
         inicializarJuego();
     }
 private:
     void cargarConfiguracionAST() {
         if (!config.cargarDesdeAST("build/arbol.ast")) {
-            nombre_juego  = "Snake Clásico";
+            nombre_juego  = "Snake Clasico";
             ancho_tablero = 25;
             alto_tablero  = 20;
             velocidad_ms  = 150;
@@ -909,7 +948,7 @@ private:
 
         string titulo = config.strings.count("nombre_juego")
                        ? config.strings["nombre_juego"]
-                       : string("Snake Clásico");
+                       : string("Snake Clasico");
 
         buf << "\033[97;1m=== " << titulo << " ===\033[0m\n";
         buf << "\033[93mPuntos: " << puntos
@@ -990,7 +1029,7 @@ private:
         }
         buf << "\033[0m\n";
 
-        buf << "\033[92mCargado desde AST: " << titulo << " | Configuración completa desde Snake.brik\033[0m\n";
+        buf << "\033[92mCargado desde AST: " << titulo << " | Configuracion completa desde Snake.brik\033[0m\n";
 
         cout << buf.str();
         cout.flush();
