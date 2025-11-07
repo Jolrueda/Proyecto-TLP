@@ -54,7 +54,8 @@ public:
     }
 };
 
-// Singleton compatible con el engine de Tetris
+// Singleton compatible con el engine de 
+
 ColorConsola& obtenerColorConsola() {
     static ColorConsola instancia;
     return instancia;
@@ -613,7 +614,7 @@ public:
                 int nr = (pieza_actual->rotacion_actual + 1) % static_cast<int>(pieza_actual->rotaciones.size());
                 if (esMovimientoValido(pieza_actual->x, pieza_actual->y, nr)) {
                     pieza_actual->rotacion_actual = nr;
-                    puntos += 10;
+                    //puntos += 10;
                 }
                 break;
             }

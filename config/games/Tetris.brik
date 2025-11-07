@@ -36,7 +36,6 @@ puntos_linea_simple = 100
 puntos_linea_doble = 300
 puntos_linea_triple = 500
 puntos_linea_tetris = 800
-puntos_giro_exitoso = 10
 puntos_caida_rapida = 1
 puntos_por_movimiento = 0
 total_puntos = 0
