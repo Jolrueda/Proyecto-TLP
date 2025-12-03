@@ -12,7 +12,7 @@
 using namespace std;
 
 string cargarArchivo(const string& ruta) {
-    ifstream archivo(ruta);
+    ifstream archivo(ruta.c_str());
     if (!archivo.is_open()) {
         throw runtime_error("Error: No se pudo abrir el archivo " + ruta);
     }
@@ -72,12 +72,18 @@ public:
                         comentario += fuente_[pos_actual_];
                         pos_actual_++;
                     }
-                    tokens.push_back({COMENTARIO, comentario});
+                    Token tcom;
+                    tcom.tipo = COMENTARIO;
+                    tcom.valor = comentario;
+                    tokens.push_back(tcom);
                     cout << "TOKEN COMENTARIO: " << comentario << endl;
                     continue;
                 }
                 else {
-                    tokens.push_back({OPERADOR, "/"});
+                    Token toper;
+                    toper.tipo = OPERADOR;
+                    toper.valor = "/";
+                    tokens.push_back(toper);
                     cout << "TOKEN OPERADOR: /" << endl;
                     pos_actual_++;
                     continue;
@@ -100,7 +106,10 @@ public:
                     pos_actual_++; // Avanzar después de la comilla final
                 }
                 
-                tokens.push_back({CADENA, valor_cadena});
+                Token tstr;
+                tstr.tipo = CADENA;
+                tstr.valor = valor_cadena;
+                tokens.push_back(tstr);
                 cout << "TOKEN CADENA: " << valor_cadena << endl;
                 continue;
             }
@@ -123,7 +132,10 @@ public:
                     pos_actual_++;
                 }
                 
-                tokens.push_back({NUMERO, numero});
+                Token tnum;
+                tnum.tipo = NUMERO;
+                tnum.valor = numero;
+                tokens.push_back(tnum);
                 cout << "TOKEN NUMERO: " << numero << endl;
                 continue;
             }
@@ -135,14 +147,20 @@ public:
                     identificador += fuente_[pos_actual_];
                     pos_actual_++;
                 }
-                tokens.push_back({IDENTIFICADOR, identificador});
+                Token tid;
+                tid.tipo = IDENTIFICADOR;
+                tid.valor = identificador;
+                tokens.push_back(tid);
                 cout << "TOKEN IDENTIFICADOR: " << identificador << endl;
                 continue;
             }
 
             // Operador de asignación (=)
             if (caracter_actual == '=') {
-                tokens.push_back({IGUAL, "="});
+                Token tig;
+                tig.tipo = IGUAL;
+                tig.valor = "=";
+                tokens.push_back(tig);
                 cout << "TOKEN IGUAL: =" << endl;
                 pos_actual_++;
                 continue;
@@ -150,7 +168,10 @@ public:
 
             // Dos puntos (:)
             if (caracter_actual == ':') {
-                tokens.push_back({DOS_PUNTOS, ":"});
+                Token td;
+                td.tipo = DOS_PUNTOS;
+                td.valor = ":";
+                tokens.push_back(td);
                 cout << "TOKEN DOS_PUNTOS: :" << endl;
                 pos_actual_++;
                 continue;
@@ -158,7 +179,10 @@ public:
 
             // Punto y coma (;)
             if (caracter_actual == ';') {
-                tokens.push_back({PUNTO_Y_COMA, ";"});
+                Token tp;
+                tp.tipo = PUNTO_Y_COMA;
+                tp.valor = ";";
+                tokens.push_back(tp);
                 cout << "TOKEN PUNTO_Y_COMA: ;" << endl;
                 pos_actual_++;
                 continue;
@@ -166,14 +190,20 @@ public:
 
             // Llaves
             if (caracter_actual == '{') {
-                tokens.push_back({LLAVE_ABIERTA, "{"});
+                Token tla;
+                tla.tipo = LLAVE_ABIERTA;
+                tla.valor = "{";
+                tokens.push_back(tla);
                 cout << "TOKEN LLAVE_ABIERTA: {" << endl;
                 pos_actual_++;
                 continue;
             }
 
             if (caracter_actual == '}') {
-                tokens.push_back({LLAVE_CERRADA, "}"});
+                Token tlc;
+                tlc.tipo = LLAVE_CERRADA;
+                tlc.valor = "}";
+                tokens.push_back(tlc);
                 cout << "TOKEN LLAVE_CERRADA: }" << endl;
                 pos_actual_++;
                 continue;
@@ -181,14 +211,20 @@ public:
 
             // Corchetes
             if (caracter_actual == '[') {
-                tokens.push_back({CORCHETE_ABIERTO, "["});
+                Token tca;
+                tca.tipo = CORCHETE_ABIERTO;
+                tca.valor = "[";
+                tokens.push_back(tca);
                 cout << "TOKEN CORCHETE_ABIERTO: [" << endl;
                 pos_actual_++;
                 continue;
             }
 
             if (caracter_actual == ']') {
-                tokens.push_back({CORCHETE_CERRADO, "]"});
+                Token tcc;
+                tcc.tipo = CORCHETE_CERRADO;
+                tcc.valor = "]";
+                tokens.push_back(tcc);
                 cout << "TOKEN CORCHETE_CERRADO: ]" << endl;
                 pos_actual_++;
                 continue;
@@ -196,7 +232,10 @@ public:
 
             // Coma
             if (caracter_actual == ',') {
-                tokens.push_back({COMA, ","});
+                Token tcoma;
+                tcoma.tipo = COMA;
+                tcoma.valor = ",";
+                tokens.push_back(tcoma);
                 cout << "TOKEN COMA: ," << endl;
                 pos_actual_++;
                 continue;
@@ -205,7 +244,10 @@ public:
             // Otros operadores básicos
             if (caracter_actual == '+' || caracter_actual == '-' || caracter_actual == '*' || 
                 caracter_actual == '%' || caracter_actual == '!') {
-                tokens.push_back({OPERADOR, string(1, caracter_actual)});
+                Token top;
+                top.tipo = OPERADOR;
+                top.valor = string(1, caracter_actual);
+                tokens.push_back(top);
                 cout << "TOKEN OPERADOR: " << caracter_actual << endl;
                 pos_actual_++;
                 continue;
@@ -334,7 +376,7 @@ private:
         if (tok.tipo == CADENA) {
             string s = obtener_token().valor;
             // quitar comillas si están presentes
-            if (s.size() >= 2 && s.front() == '"' && s.back() == '"') s = s.substr(1, s.size()-2);
+            if (s.size() >= 2 && s[0] == '"' && s[s.size()-1] == '"') s = s.substr(1, s.size()-2);
             // devolver cadena entre comillas
             return string("\"") + s + string("\"");
         }
@@ -376,8 +418,8 @@ private:
         obtener_token(); // consumir '}'
     ostringstream oss;
         oss << "{";
-        for (auto const& kv : bloque) {
-            oss << kv.first << ":" << kv.second << ",";
+        for (map<string, string>::const_iterator it = bloque.begin(); it != bloque.end(); ++it) {
+            oss << it->first << ":" << it->second << ",";
         }
         oss << "}";
         return oss.str();
@@ -393,7 +435,7 @@ private:
                 elementos.push_back(obtener_token().valor);
             } else if (it.tipo == CADENA) {
                 string s = obtener_token().valor;
-                if (s.size() >= 2 && s.front() == '"' && s.back() == '"') s = s.substr(1, s.size()-2);
+                if (s.size() >= 2 && s[0] == '"' && s[s.size()-1] == '"') s = s.substr(1, s.size()-2);
                 elementos.push_back(string("\"") + s + string("\"") );
             } else if (it.tipo == CORCHETE_ABIERTO) {
                 elementos.push_back(parsearLista());
@@ -409,7 +451,7 @@ private:
         obtener_token(); // consumir ']'
     ostringstream oss;
         oss << "[";
-        for (const auto& it : elementos) oss << it << ",";
+        for (size_t i = 0; i < elementos.size(); ++i) oss << elementos[i] << ",";
         oss << "]";
         return oss.str();
     }
@@ -419,9 +461,11 @@ private:
 string indentStr(int n) { return string(n*2, ' '); }
 void printAstMap(const map<string, string>& m, ostream& out, int indent=0) {
     out << "{" << endl;
-    for (auto it = m.begin(); it != m.end(); ++it) {
+    for (map<string, string>::const_iterator it = m.begin(); it != m.end(); ++it) {
         out << indentStr(indent+1) << '"' << it->first << '"' << ": " << it->second;
-        if (next(it) != m.end()) out << ",";
+        map<string, string>::const_iterator next_it = it;
+        ++next_it;
+        if (next_it != m.end()) out << ",";
         out << endl;
     }
     out << indentStr(indent) << "}";
@@ -436,7 +480,9 @@ int main(int argc, char** argv) {
             // Soportar atajos por nombre de juego: "tetris" o "snake"
             string arg = argv[1];
             // normalizar a minuscula
-            transform(arg.begin(), arg.end(), arg.begin(), [](unsigned char c){ return (char)tolower(c); });
+            for (size_t _i = 0; _i < arg.size(); ++_i) {
+                arg[_i] = (char)tolower((unsigned char)arg[_i]);
+            }
             if (arg == "tetris" || arg == "t") {
                 nombreArchivo = "config/games/Tetris.brik";
                 cout << "Compilando Tetris.brik..." << endl;
@@ -493,7 +539,8 @@ int main(int argc, char** argv) {
         cout << "\nTipos de tokens encontrados:" << endl;
         
         map<string, int> cuenta_tokens;
-        for (const Token& token : tokens) {
+        for (size_t i = 0; i < tokens.size(); ++i) {
+            const Token& token = tokens[i];
             string nombre_token;
             switch (token.tipo) {
                 case IDENTIFICADOR: nombre_token = "IDENTIFICADOR"; break;
@@ -513,14 +560,14 @@ int main(int argc, char** argv) {
             cuenta_tokens[nombre_token]++;
         }
 
-        for (const auto& pair : cuenta_tokens) {
-            cout << "  " << pair.first << ": " << pair.second << " tokens" << endl;
+        for (map<string, int>::const_iterator it = cuenta_tokens.begin(); it != cuenta_tokens.end(); ++it) {
+            cout << "  " << it->first << ": " << it->second << " tokens" << endl;
         }
 
         cout << "\n=== PRIMEROS 30 TOKENS ===" << endl;
         int contador = 0;
-        for (const Token& token : tokens) {
-            if (contador >= 30) break;
+        for (size_t i = 0; i < tokens.size() && contador < 30; ++i) {
+            const Token& token = tokens[i];
             string nombre_token;
             switch (token.tipo) {
                 case IDENTIFICADOR: nombre_token = "IDENTIFICADOR"; break;
