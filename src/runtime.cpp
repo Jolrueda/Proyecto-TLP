@@ -352,7 +352,9 @@ private:
 // ================================================================
 class ConfigTetris {
 public:
-    map<string, int> colores;
+    map<string, int> colores;  // Colores para consola (códigos)
+    map<string, vector<int> > colores_rgb;  // Colores RGB para renderizado gráfico [R, G, B]
+    map<string, string> pieza_a_color;  // Mapeo de tipo de pieza a nombre de color (ej: "I" -> "cian")
     map<string, vector<vector<vector<int> > > > rotaciones_piezas;
     vector<string> tipos_piezas;
     string nombre_juego;
@@ -391,6 +393,44 @@ public:
                   << " puntos_linea_simple=" << puntos_linea_simple
                   << " puntos_linea_tetris=" << puntos_linea_tetris
                   << std::endl;
+    }
+    
+    // Obtener color RGB de una pieza por su tipo
+    vector<int> obtenerColorRGB(const string& tipo_pieza) const {
+        if (pieza_a_color.count(tipo_pieza)) {
+            string color_nombre = pieza_a_color.find(tipo_pieza)->second;
+            return obtenerColorRGBPorNombre(color_nombre);
+        }
+        // Valores por defecto basados en el tipo de pieza
+        vector<int> rgb;
+        if (tipo_pieza == "I") { rgb.push_back(0); rgb.push_back(255); rgb.push_back(255); } // cian
+        else if (tipo_pieza == "J") { rgb.push_back(0); rgb.push_back(100); rgb.push_back(255); } // azul
+        else if (tipo_pieza == "L") { rgb.push_back(255); rgb.push_back(165); rgb.push_back(0); } // naranja
+        else if (tipo_pieza == "O") { rgb.push_back(255); rgb.push_back(255); rgb.push_back(0); } // amarillo
+        else if (tipo_pieza == "S") { rgb.push_back(0); rgb.push_back(255); rgb.push_back(0); } // verde
+        else if (tipo_pieza == "Z") { rgb.push_back(255); rgb.push_back(0); rgb.push_back(0); } // rojo
+        else if (tipo_pieza == "T") { rgb.push_back(255); rgb.push_back(0); rgb.push_back(255); } // magenta
+        else { rgb.push_back(128); rgb.push_back(128); rgb.push_back(128); } // gris
+        return rgb;
+    }
+    
+    // Obtener color RGB por nombre de color
+    vector<int> obtenerColorRGBPorNombre(const string& nombre_color) const {
+        if (colores_rgb.count(nombre_color)) {
+            return colores_rgb.find(nombre_color)->second;
+        }
+        // Valores por defecto
+        vector<int> rgb;
+        if (nombre_color == "cian") { rgb.push_back(0); rgb.push_back(255); rgb.push_back(255); }
+        else if (nombre_color == "azul") { rgb.push_back(0); rgb.push_back(100); rgb.push_back(255); }
+        else if (nombre_color == "naranja") { rgb.push_back(255); rgb.push_back(165); rgb.push_back(0); }
+        else if (nombre_color == "amarillo") { rgb.push_back(255); rgb.push_back(255); rgb.push_back(0); }
+        else if (nombre_color == "verde") { rgb.push_back(0); rgb.push_back(255); rgb.push_back(0); }
+        else if (nombre_color == "rojo") { rgb.push_back(255); rgb.push_back(0); rgb.push_back(0); }
+        else if (nombre_color == "magenta") { rgb.push_back(255); rgb.push_back(0); rgb.push_back(255); }
+        else if (nombre_color == "blanco") { rgb.push_back(255); rgb.push_back(255); rgb.push_back(255); }
+        else { rgb.push_back(128); rgb.push_back(128); rgb.push_back(128); }
+        return rgb;
     }
 private:
     void cargarDesdeAST() {
@@ -444,9 +484,32 @@ private:
             string pieza = tipos_piezas[_i];
             if (parser.objects_str["colores_piezas"].count(pieza)) {
                 string color_nombre = parser.objects_str["colores_piezas"][pieza];
+                pieza_a_color[pieza] = color_nombre;  // Guardar mapeo pieza -> color
                 if (parser.objects_int["codigos_color"].count(color_nombre)) {
                     colores[pieza] = parser.objects_int["codigos_color"][color_nombre];
                 }
+                // Cargar colores RGB (valores por defecto basados en el nombre del color)
+                vector<int> rgb_default;
+                if (color_nombre == "cian") {
+                    rgb_default.push_back(0); rgb_default.push_back(255); rgb_default.push_back(255);
+                } else if (color_nombre == "azul") {
+                    rgb_default.push_back(0); rgb_default.push_back(100); rgb_default.push_back(255);
+                } else if (color_nombre == "naranja") {
+                    rgb_default.push_back(255); rgb_default.push_back(165); rgb_default.push_back(0);
+                } else if (color_nombre == "amarillo") {
+                    rgb_default.push_back(255); rgb_default.push_back(255); rgb_default.push_back(0);
+                } else if (color_nombre == "verde") {
+                    rgb_default.push_back(0); rgb_default.push_back(255); rgb_default.push_back(0);
+                } else if (color_nombre == "rojo") {
+                    rgb_default.push_back(255); rgb_default.push_back(0); rgb_default.push_back(0);
+                } else if (color_nombre == "magenta") {
+                    rgb_default.push_back(255); rgb_default.push_back(0); rgb_default.push_back(255);
+                } else if (color_nombre == "blanco") {
+                    rgb_default.push_back(255); rgb_default.push_back(255); rgb_default.push_back(255);
+                } else {
+                    rgb_default.push_back(128); rgb_default.push_back(128); rgb_default.push_back(128); // gris por defecto
+                }
+                colores_rgb[color_nombre] = rgb_default;
             }
         }
     }
@@ -673,6 +736,10 @@ private:
     int puntos;
     int nivel;
     int lineas_completadas;
+    int contador_linea_simple;  // Contador de líneas simples completadas
+    int contador_linea_doble;    // Contador de líneas dobles completadas
+    int contador_linea_triple;   // Contador de líneas triples completadas
+    int contador_linea_tetris;   // Contador de tetris (4 líneas) completados
     int velocidad_caida;
     DWORD last_horiz_move;
     DWORD last_soft_drop;
@@ -707,6 +774,10 @@ public:
         , puntos(0)
         , nivel(1)
         , lineas_completadas(0)
+        , contador_linea_simple(0)
+        , contador_linea_doble(0)
+        , contador_linea_triple(0)
+        , contador_linea_tetris(0)
         , velocidad_caida(800)
         , juego_activo(true)
         , pausado(false)
@@ -720,7 +791,7 @@ public:
         last_horiz_move = GetTickCount();
         last_soft_drop = GetTickCount();
         // Apply config-driven physics
-        nivel = config.nivel_inicial;
+        nivel = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
         velocidad_caida = config.velocidad_inicial;
         lineas_completadas = 0;
         generarNuevaPieza();
@@ -819,7 +890,8 @@ public:
             calcularPuntos(static_cast<int>(lineas.size()));
             lineas_completadas += static_cast<int>(lineas.size());
 
-            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + config.nivel_inicial;
+            int nivel_base = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
+            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + nivel_base;
             if (nuevo_nivel > nivel) {
                 nivel = nuevo_nivel;
                 // decrease fall interval according to aceleracion_por_nivel
@@ -848,11 +920,25 @@ public:
     }
 
     void calcularPuntos(int n) {
+        // Asegurar que el nivel mínimo sea 1 para el cálculo de puntos
+        int nivel_para_puntos = (nivel > 0) ? nivel : 1;
         switch (n) {
-            case 1: puntos += config.puntos_linea_simple * nivel; break;
-            case 2: puntos += config.puntos_linea_doble * nivel; break;
-            case 3: puntos += config.puntos_linea_triple * nivel; break;
-            case 4: puntos += config.puntos_linea_tetris * nivel; break; // TETRIS
+            case 1: 
+                puntos += config.puntos_linea_simple * nivel_para_puntos;
+                contador_linea_simple++;
+                break;
+            case 2: 
+                puntos += config.puntos_linea_doble * nivel_para_puntos;
+                contador_linea_doble++;
+                break;
+            case 3: 
+                puntos += config.puntos_linea_triple * nivel_para_puntos;
+                contador_linea_triple++;
+                break;
+            case 4: 
+                puntos += config.puntos_linea_tetris * nivel_para_puntos; // TETRIS
+                contador_linea_tetris++;
+                break;
         }
     }
 
@@ -929,8 +1015,12 @@ public:
             }
         }
         puntos            = 0;
-        nivel             = config.nivel_inicial;
+        nivel             = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
         lineas_completadas = 0;
+        contador_linea_simple = 0;
+        contador_linea_doble = 0;
+        contador_linea_triple = 0;
+        contador_linea_tetris = 0;
         velocidad_caida   = config.velocidad_inicial;
         game_over         = false;
         juego_activo      = true;
@@ -1108,6 +1198,13 @@ private:
     bool               game_over;
     int                puntos;
     int                nivel;
+    // Contadores de frutas comidas
+    int                contador_manzana;
+    int                contador_cereza;
+    int                contador_banana;
+    int                contador_uva;
+    int                contador_naranja;
+    int                total_frutas_comidas;  // Total de todas las frutas comidas
     // se usará rand() en lugar de mt19937 para compatibilidad C++03
     int                ancho_tablero;
     int                alto_tablero;
@@ -1119,7 +1216,13 @@ public:
          pausado(false),
          game_over(false),
          puntos(0),
-         nivel(1) {
+         nivel(1),
+         contador_manzana(0),
+         contador_cereza(0),
+         contador_banana(0),
+         contador_uva(0),
+         contador_naranja(0),
+         total_frutas_comidas(0) {
         // semilla para rand()
         srand((unsigned)time(NULL));
         cargarConfiguracionAST();
@@ -1153,6 +1256,13 @@ private:
         generarNuevaFruta();
         puntos    = 0;
         game_over = false;
+        // Resetear contadores de frutas
+        contador_manzana = 0;
+        contador_cereza = 0;
+        contador_banana = 0;
+        contador_uva = 0;
+        contador_naranja = 0;
+        total_frutas_comidas = 0;
     }
 
     void generarNuevaFruta() {
@@ -1192,14 +1302,25 @@ private:
     }
 
     bool hayColisionConCuerpo(const Posicion& p) {
-        for (size_t i = 1; i < cuerpo_snake.size(); ++i) {
+        // Verificar que haya al menos 2 segmentos (cabeza + cuerpo)
+        if (cuerpo_snake.size() < 2) return false;
+        
+        // Verificar colisión con el cuerpo (excluyendo la cabeza en índice 0)
+        // IMPORTANTE: Excluimos la cola (último segmento) porque se eliminará al moverse
+        // Si la nueva cabeza está en la posición de la cola, NO es una colisión
+        // Solo verificamos colisión con segmentos que permanecerán después del movimiento
+        size_t ultimo_indice = cuerpo_snake.size() - 1;  // Índice de la cola
+        for (size_t i = 1; i < ultimo_indice; ++i) {
             if (cuerpo_snake[i] == p) return true;
         }
         return false;
     }
 
     bool estaFueraDelTablero(const Posicion& p) {
-        return p.x <= 0 || p.x >= ancho_tablero - 1 || p.y <= 0 || p.y >= alto_tablero - 1;
+        // Verificar límites del tablero
+        // La serpiente puede moverse en el área interior: x de 1 a ancho-2, y de 1 a alto-2
+        // Los bordes (x=0, x=ancho-1, y=0, y=alto-1) son paredes
+        return p.x < 1 || p.x >= ancho_tablero - 1 || p.y < 1 || p.y >= alto_tablero - 1;
     }
 
     void procesarEntrada() {
@@ -1226,9 +1347,23 @@ private:
 
     void actualizarFisica() {
         if (pausado || game_over) return;
+        
+        // Verificar que la serpiente tenga al menos un segmento
+        if (cuerpo_snake.empty()) {
+            game_over = true;
+            return;
+        }
+        
+        // Verificar que la dirección sea válida (no sea (0,0))
+        if (direccion_actual.x == 0 && direccion_actual.y == 0) {
+            return; // No moverse si no hay dirección
+        }
+        
+        // Calcular nueva posición de la cabeza
         Posicion nueva(cuerpo_snake[0].x + direccion_actual.x,
                        cuerpo_snake[0].y + direccion_actual.y);
 
+        // Verificar configuración de colisiones
         bool fin_borde = config.booleans.count("terminar_al_chocar_borde")
                         ? config.booleans["terminar_al_chocar_borde"]
                         : true;
@@ -1236,13 +1371,37 @@ private:
                         ? config.booleans["terminar_al_chocar_cuerpo"]
                         : true;
 
-        if (fin_borde && estaFueraDelTablero(nueva)) {
-            game_over = true;
-            return;
+        // Verificar colisión con bordes (mejorado)
+        if (fin_borde) {
+            // Verificar límites exactos del tablero
+            if (nueva.x < 1 || nueva.x >= ancho_tablero - 1 || 
+                nueva.y < 1 || nueva.y >= alto_tablero - 1) {
+                game_over = true;
+                return;
+            }
+        } else {
+            // Si no termina al chocar borde, hacer wrap-around (teleportar al otro lado)
+            if (nueva.x < 1) nueva.x = ancho_tablero - 2;
+            else if (nueva.x >= ancho_tablero - 1) nueva.x = 1;
+            if (nueva.y < 1) nueva.y = alto_tablero - 2;
+            else if (nueva.y >= alto_tablero - 1) nueva.y = 1;
         }
-        if (fin_cuerpo && hayColisionConCuerpo(nueva)) {
-            game_over = true;
-            return;
+        
+        // Verificar colisión con el cuerpo (mejorado)
+        // IMPORTANTE: Solo verificamos colisión con segmentos que permanecerán después del movimiento
+        // La cola (último segmento) se eliminará, así que no cuenta como colisión
+        if (fin_cuerpo) {
+            // Si hay menos de 2 segmentos, no puede haber colisión con el cuerpo
+            if (cuerpo_snake.size() >= 2) {
+                // Verificar colisión con todos los segmentos excepto la cabeza (índice 0) y la cola (último índice)
+                size_t ultimo_indice = cuerpo_snake.size() - 1;
+                for (size_t i = 1; i < ultimo_indice; ++i) {
+                    if (cuerpo_snake[i] == nueva) {
+                        game_over = true;
+                        return;
+                    }
+                }
+            }
         }
 
         cuerpo_snake.insert(cuerpo_snake.begin(), nueva);
@@ -1268,6 +1427,72 @@ private:
             }
             
             puntos += pf;
+            // Incrementar contador según el tipo de fruta
+            if (fruta_tipo_actual == "manzana") contador_manzana++;
+            else if (fruta_tipo_actual == "cereza") contador_cereza++;
+            else if (fruta_tipo_actual == "banana") contador_banana++;
+            else if (fruta_tipo_actual == "uva") contador_uva++;
+            else if (fruta_tipo_actual == "naranja") contador_naranja++;
+            total_frutas_comidas++;  // Incrementar total
+            
+            // Aplicar efectos de la fruta
+            // 1. Efecto de crecimiento (puede ser negativo para acortar)
+            int crecimiento = 1;  // Por defecto crece 1
+            string clave_crecimiento = "crecimiento_" + fruta_tipo_actual;
+            if (config.integers.count(clave_crecimiento)) {
+                crecimiento = config.integers[clave_crecimiento];
+            } else {
+                // Valores por defecto (actualizados según configuración)
+                if (fruta_tipo_actual == "manzana") crecimiento = -1;  // Disminuye 1
+                else if (fruta_tipo_actual == "cereza") crecimiento = 0;  // Sin crecimiento
+                else if (fruta_tipo_actual == "banana") crecimiento = 0;  // Sin crecimiento
+                else if (fruta_tipo_actual == "uva") crecimiento = 2;  // Aumenta 2
+                else if (fruta_tipo_actual == "naranja") crecimiento = 1;  // Normal (crece 1)
+            }
+            
+            // Aplicar crecimiento (si es negativo, acortar la serpiente)
+            if (crecimiento > 0) {
+                // Crecer: agregar segmentos al final
+                for (int i = 0; i < crecimiento; ++i) {
+                    if (!cuerpo_snake.empty()) {
+                        Posicion ultimo = cuerpo_snake.back();
+                        cuerpo_snake.push_back(ultimo);
+                    }
+                }
+            } else if (crecimiento < 0) {
+                // Acortar: eliminar segmentos del final (mínimo 1 segmento)
+                int acortar = -crecimiento;
+                for (int i = 0; i < acortar && cuerpo_snake.size() > 1; ++i) {
+                    cuerpo_snake.pop_back();
+                }
+            }
+            
+            // 2. Efecto de velocidad (positivo = más lento, negativo = más rápido)
+            int cambio_velocidad = 0;  // Por defecto sin cambio
+            string clave_velocidad = "velocidad_" + fruta_tipo_actual;
+            if (config.integers.count(clave_velocidad)) {
+                cambio_velocidad = config.integers[clave_velocidad];
+            } else {
+                // Valores por defecto (actualizados según configuración)
+                if (fruta_tipo_actual == "manzana") cambio_velocidad = 0;  // Sin cambio
+                else if (fruta_tipo_actual == "cereza") cambio_velocidad = 20;  // Más lento
+                else if (fruta_tipo_actual == "banana") cambio_velocidad = -15;  // Más rápido
+                else if (fruta_tipo_actual == "uva") cambio_velocidad = 0;  // Sin cambio
+                else if (fruta_tipo_actual == "naranja") cambio_velocidad = 0;  // Normal (sin cambio)
+            }
+            
+            // Aplicar cambio de velocidad
+            velocidad_ms += cambio_velocidad;
+            // Límites de velocidad (más bajo = más rápido, más alto = más lento)
+            int velocidad_min = config.integers.count("velocidad_minima") 
+                              ? config.integers["velocidad_minima"] 
+                              : 50;
+            int velocidad_max = config.integers.count("velocidad_maxima") 
+                              ? config.integers["velocidad_maxima"] 
+                              : 500;
+            if (velocidad_ms < velocidad_min) velocidad_ms = velocidad_min;
+            if (velocidad_ms > velocidad_max) velocidad_ms = velocidad_max;
+            
             generarNuevaFruta();
         } else {
             cuerpo_snake.pop_back();
@@ -1286,6 +1511,7 @@ private:
         buf << "\033[93mPuntos: " << puntos
             << " | Nivel: " << nivel
             << " | Longitud: " << cuerpo_snake.size()
+            << " | Frutas: " << total_frutas_comidas
             << "\033[0m\n";
         buf << "\033[90mControles: WASD - Mover, P - Pausa, ESC - Salir\033[0m\n\n";
 
@@ -1566,6 +1792,10 @@ public:
     int velocidad_caida;     // Velocidad de caída en milisegundos
     int nivel;               // Nivel actual del juego
     int lineas_completadas;  // Total de líneas completadas
+    int contador_linea_simple;  // Contador de líneas simples completadas
+    int contador_linea_doble;    // Contador de líneas dobles completadas
+    int contador_linea_triple;   // Contador de líneas triples completadas
+    int contador_linea_tetris;   // Contador de tetris (4 líneas) completados
 
     // Estados del juego
     bool juego_activo;  // Indica si el juego está en ejecución
@@ -1596,6 +1826,10 @@ public:
         , velocidad_caida(800)
         , nivel(1)
         , lineas_completadas(0)
+        , contador_linea_simple(0)
+        , contador_linea_doble(0)
+        , contador_linea_triple(0)
+        , contador_linea_tetris(0)
         , juego_activo(true)
         , pausado(false)
         , game_over(false) {
@@ -1624,7 +1858,7 @@ public:
             cell = config.tamanio_celda;
         }
         velocidad_caida = config.velocidad_inicial;
-        nivel = config.nivel_inicial;
+        nivel = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
         
         // Generar primera pieza y siguiente pieza
         generarNuevaPieza();
@@ -1817,7 +2051,8 @@ public:
             lineas_completadas += (int)lineas_completas.size();
             
             // Calcular nuevo nivel basado en líneas completadas
-            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + config.nivel_inicial;
+            int nivel_base = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
+            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + nivel_base;
             
             // Si subió de nivel, aumentar la velocidad
             if (nuevo_nivel > nivel) {
@@ -1843,23 +2078,30 @@ public:
      * @param num_lineas Número de líneas eliminadas simultáneamente (1-4)
      */
     void calcularPuntos(int num_lineas) {
+        // Asegurar que el nivel mínimo sea 1 para el cálculo de puntos
+        int nivel_para_puntos = (nivel > 0) ? nivel : 1;
         switch (num_lineas) {
             case 1:
-                puntos += config.puntos_linea_simple * nivel;
-                        break;
+                puntos += config.puntos_linea_simple * nivel_para_puntos;
+                contador_linea_simple++;
+                break;
             case 2:
-                puntos += config.puntos_linea_doble * nivel;
-                        break;
+                puntos += config.puntos_linea_doble * nivel_para_puntos;
+                contador_linea_doble++;
+                break;
             case 3:
-                puntos += config.puntos_linea_triple * nivel;
-                        break;
+                puntos += config.puntos_linea_triple * nivel_para_puntos;
+                contador_linea_triple++;
+                break;
             case 4:
-                puntos += config.puntos_linea_tetris * nivel;  // Tetris (4 líneas)
-                        break;
+                puntos += config.puntos_linea_tetris * nivel_para_puntos;  // Tetris (4 líneas)
+                contador_linea_tetris++;
+                break;
             default:
                 // Si hay más de 4 líneas (no debería pasar), usar el máximo
-                puntos += config.puntos_linea_tetris * nivel;
-                        break;
+                puntos += config.puntos_linea_tetris * nivel_para_puntos;
+                contador_linea_tetris++;
+                break;
         }
     }
 
@@ -1877,8 +2119,12 @@ public:
         
         // Resetear estadísticas
         puntos = 0;
-        nivel = config.nivel_inicial;
+        nivel = (config.nivel_inicial > 0) ? config.nivel_inicial : 1;
         lineas_completadas = 0;
+        contador_linea_simple = 0;
+        contador_linea_doble = 0;
+        contador_linea_triple = 0;
+        contador_linea_tetris = 0;
         velocidad_caida = config.velocidad_inicial;
         
         // Resetear estados del juego
@@ -2063,9 +2309,26 @@ public:
             for (int x = 0; x < ANCHO; ++x) {
                 COLORREF color_celda = ColorRGB(30, 30, 40);  // Color por defecto (vacío)
                 
-                // Si la celda está ocupada, usar color verde
+                // Si la celda está ocupada, usar el color de la pieza
                 if (tablero[y][x] != VACIO) {
-                    color_celda = ColorRGB(100, 200, 100);
+                    // Convertir TipoPieza a string para buscar el color
+                    string tipo_str;
+                    switch (tablero[y][x]) {
+                        case I: tipo_str = "I"; break;
+                        case J: tipo_str = "J"; break;
+                        case L: tipo_str = "L"; break;
+                        case O: tipo_str = "O"; break;
+                        case S: tipo_str = "S"; break;
+                        case Z: tipo_str = "Z"; break;
+                        case T: tipo_str = "T"; break;
+                        default: tipo_str = "I"; break;
+                    }
+                    vector<int> rgb = config.obtenerColorRGB(tipo_str);
+                    if (rgb.size() >= 3) {
+                        color_celda = ColorRGB(rgb[0], rgb[1], rgb[2]);
+                    } else {
+                        color_celda = ColorRGB(100, 200, 100); // Verde por defecto
+                    }
                 }
                 
                 // Dibujar celda con pequeño margen para efecto visual
@@ -2090,12 +2353,20 @@ public:
                         
                         // Solo dibujar si la pieza está dentro del tablero visible
                         if (by >= 0) {
+                            // Usar el color RGB de la pieza desde la configuración
+                            vector<int> rgb = config.obtenerColorRGB(pieza_actual->tipo_str);
+                            COLORREF color_pieza;
+                            if (rgb.size() >= 3) {
+                                color_pieza = ColorRGB(rgb[0], rgb[1], rgb[2]);
+                            } else {
+                                color_pieza = ColorRGB(200, 100, 50); // Naranja por defecto
+                            }
                             FillRectColor(hdc, 
                                 offsetX + bx * cell + 1, 
                                 offsetY + by * cell + 1, 
                                 cell - 2, 
                                 cell - 2, 
-                                ColorRGB(200, 100, 50));  // Color naranja para la pieza
+                                color_pieza);
                         }
                     }
                 }
@@ -2136,19 +2407,19 @@ public:
         TextOutA(hdc, panelX, currentY, "Puntos por linea:", 17);
         currentY += lineHeight;
         
-        sprintf(buf, "1 linea: %d x%d", config.puntos_linea_simple, nivel);
+        sprintf(buf, "1 linea: %d x%d", config.puntos_linea_simple, contador_linea_simple);
         TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
         currentY += lineHeight;
         
-        sprintf(buf, "2 lineas: %d x%d", config.puntos_linea_doble, nivel);
+        sprintf(buf, "2 lineas: %d x%d", config.puntos_linea_doble, contador_linea_doble);
         TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
         currentY += lineHeight;
         
-        sprintf(buf, "3 lineas: %d x%d", config.puntos_linea_triple, nivel);
+        sprintf(buf, "3 lineas: %d x%d", config.puntos_linea_triple, contador_linea_triple);
         TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
         currentY += lineHeight;
         
-        sprintf(buf, "4 lineas: %d x%d", config.puntos_linea_tetris, nivel);
+        sprintf(buf, "4 lineas: %d x%d", config.puntos_linea_tetris, contador_linea_tetris);
         TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
         currentY += lineHeight + 15;
         
@@ -2256,10 +2527,14 @@ public:
     vector<Posicion> cuerpo; Posicion fruta; Posicion direccion;
     string fruta_tipo_actual;  // Tipo de fruta actual para GDI
     bool juego_activo; bool pausado; bool game_over; int puntos;
+    // Contadores de frutas comidas
+    int contador_manzana, contador_cereza, contador_banana, contador_uva, contador_naranja;
+    int total_frutas_comidas;  // Total de todas las frutas comidas
     DWORD ultima;
     SnakeAST config;
     SnakeEngineGDI(): cell(18), offsetX(20), offsetY(60), ancho_tablero(25), alto_tablero(20), velocidad_ms(150) {
         srand((unsigned)time(NULL)); juego_activo=true; pausado=false; game_over=false; puntos=0; ultima=GetTickCount();
+        contador_manzana=0; contador_cereza=0; contador_banana=0; contador_uva=0; contador_naranja=0; total_frutas_comidas=0;
         cargarConfiguracion(); inicializarJuego();
     }
     void cargarConfiguracion() { if (!config.cargarDesdeAST("build/arbol.ast")) { ancho_tablero=25; alto_tablero=20; velocidad_ms=150; } else { ancho_tablero = config.integers.count("ancho_tablero")?config.integers["ancho_tablero"]:25; alto_tablero = config.integers.count("alto_tablero")?config.integers["alto_tablero"]:20; velocidad_ms = config.integers.count("velocidad_inicial")?config.integers["velocidad_inicial"]:150; } }
@@ -2272,7 +2547,9 @@ public:
         fruta_tipo_actual = "manzana";  // Inicializar tipo de fruta
         generarFruta(); 
         puntos=0; 
-        game_over=false; 
+        game_over=false;
+        // Resetear contadores de frutas
+        contador_manzana=0; contador_cereza=0; contador_banana=0; contador_uva=0; contador_naranja=0; total_frutas_comidas=0; 
     }
     void generarFruta() { 
         do { 
@@ -2334,14 +2611,59 @@ public:
         DWORD ahora=GetTickCount(); 
         if (ahora - ultima < (DWORD)velocidad_ms) return; 
         ultima = ahora; 
-        Posicion nueva(cuerpo[0].x+direccion.x, cuerpo[0].y+direccion.y); 
-        if (nueva.x<=0||nueva.x>=ancho_tablero-1||nueva.y<=0||nueva.y>=alto_tablero-1) { 
-            game_over=true; 
-            return; 
-        } 
-        for (size_t i=1;i<cuerpo.size();++i) if (cuerpo[i]==nueva) { 
-            game_over=true; 
-            return; 
+        
+        // Verificar que la serpiente tenga al menos un segmento
+        if (cuerpo.empty()) {
+            game_over = true;
+            return;
+        }
+        
+        // Verificar que la dirección sea válida (no sea (0,0))
+        if (direccion.x == 0 && direccion.y == 0) {
+            return; // No moverse si no hay dirección
+        }
+        
+        Posicion nueva(cuerpo[0].x+direccion.x, cuerpo[0].y+direccion.y);
+        
+        // Verificar configuración de colisiones
+        bool fin_borde = config.booleans.count("terminar_al_chocar_borde")
+                        ? config.booleans["terminar_al_chocar_borde"]
+                        : true;
+        bool fin_cuerpo = config.booleans.count("terminar_al_chocar_cuerpo")
+                        ? config.booleans["terminar_al_chocar_cuerpo"]
+                        : true;
+        
+        // Verificar colisión con bordes (mejorado)
+        if (fin_borde) {
+            // Verificar límites exactos del tablero
+            if (nueva.x < 1 || nueva.x >= ancho_tablero - 1 || 
+                nueva.y < 1 || nueva.y >= alto_tablero - 1) {
+                game_over = true;
+                return;
+            }
+        } else {
+            // Si no termina al chocar borde, hacer wrap-around (teleportar al otro lado)
+            if (nueva.x < 1) nueva.x = ancho_tablero - 2;
+            else if (nueva.x >= ancho_tablero - 1) nueva.x = 1;
+            if (nueva.y < 1) nueva.y = alto_tablero - 2;
+            else if (nueva.y >= alto_tablero - 1) nueva.y = 1;
+        }
+        
+        // Verificar colisión con el cuerpo (mejorado)
+        // IMPORTANTE: Solo verificamos colisión con segmentos que permanecerán después del movimiento
+        // La cola (último segmento) se eliminará, así que no cuenta como colisión
+        if (fin_cuerpo) {
+            // Si hay menos de 2 segmentos, no puede haber colisión con el cuerpo
+            if (cuerpo.size() >= 2) {
+                // Verificar colisión con todos los segmentos excepto la cabeza (índice 0) y la cola (último índice)
+                size_t ultimo_indice = cuerpo.size() - 1;
+                for (size_t i = 1; i < ultimo_indice; ++i) {
+                    if (cuerpo[i] == nueva) {
+                        game_over = true;
+                        return;
+                    }
+                }
+            }
         } 
         cuerpo.insert(cuerpo.begin(), nueva); 
         if (nueva==fruta) { 
@@ -2358,7 +2680,73 @@ public:
                 else if (fruta_tipo_actual == "uva") pf = 25;
                 else if (fruta_tipo_actual == "naranja") pf = 30;
             }
-            puntos += pf; 
+            puntos += pf;
+            // Incrementar contador según el tipo de fruta
+            if (fruta_tipo_actual == "manzana") contador_manzana++;
+            else if (fruta_tipo_actual == "cereza") contador_cereza++;
+            else if (fruta_tipo_actual == "banana") contador_banana++;
+            else if (fruta_tipo_actual == "uva") contador_uva++;
+            else if (fruta_tipo_actual == "naranja") contador_naranja++;
+            total_frutas_comidas++;  // Incrementar total
+            
+            // Aplicar efectos de la fruta
+            // 1. Efecto de crecimiento (puede ser negativo para acortar)
+            int crecimiento = 1;  // Por defecto crece 1
+            string clave_crecimiento = "crecimiento_" + fruta_tipo_actual;
+            if (config.integers.count(clave_crecimiento)) {
+                crecimiento = config.integers[clave_crecimiento];
+            } else {
+                // Valores por defecto (actualizados según configuración)
+                if (fruta_tipo_actual == "manzana") crecimiento = -1;  // Disminuye 1
+                else if (fruta_tipo_actual == "cereza") crecimiento = 0;  // Sin crecimiento
+                else if (fruta_tipo_actual == "banana") crecimiento = 0;  // Sin crecimiento
+                else if (fruta_tipo_actual == "uva") crecimiento = 2;  // Aumenta 2
+                else if (fruta_tipo_actual == "naranja") crecimiento = 1;  // Normal (crece 1)
+            }
+            
+            // Aplicar crecimiento (si es negativo, acortar la serpiente)
+            if (crecimiento > 0) {
+                // Crecer: agregar segmentos al final
+                for (int i = 0; i < crecimiento; ++i) {
+                    if (!cuerpo.empty()) {
+                        Posicion ultimo = cuerpo.back();
+                        cuerpo.push_back(ultimo);
+                    }
+                }
+            } else if (crecimiento < 0) {
+                // Acortar: eliminar segmentos del final (mínimo 1 segmento)
+                int acortar = -crecimiento;
+                for (int i = 0; i < acortar && cuerpo.size() > 1; ++i) {
+                    cuerpo.pop_back();
+                }
+            }
+            
+            // 2. Efecto de velocidad (positivo = más lento, negativo = más rápido)
+            int cambio_velocidad = 0;  // Por defecto sin cambio
+            string clave_velocidad = "velocidad_" + fruta_tipo_actual;
+            if (config.integers.count(clave_velocidad)) {
+                cambio_velocidad = config.integers[clave_velocidad];
+            } else {
+                // Valores por defecto (actualizados según configuración)
+                if (fruta_tipo_actual == "manzana") cambio_velocidad = 0;  // Sin cambio
+                else if (fruta_tipo_actual == "cereza") cambio_velocidad = 20;  // Más lento
+                else if (fruta_tipo_actual == "banana") cambio_velocidad = -15;  // Más rápido
+                else if (fruta_tipo_actual == "uva") cambio_velocidad = 0;  // Sin cambio
+                else if (fruta_tipo_actual == "naranja") cambio_velocidad = 0;  // Normal (sin cambio)
+            }
+            
+            // Aplicar cambio de velocidad
+            velocidad_ms += cambio_velocidad;
+            // Límites de velocidad (más bajo = más rápido, más alto = más lento)
+            int velocidad_min = config.integers.count("velocidad_minima") 
+                              ? config.integers["velocidad_minima"] 
+                              : 50;
+            int velocidad_max = config.integers.count("velocidad_maxima") 
+                              ? config.integers["velocidad_maxima"] 
+                              : 500;
+            if (velocidad_ms < velocidad_min) velocidad_ms = velocidad_min;
+            if (velocidad_ms > velocidad_max) velocidad_ms = velocidad_max;
+            
             generarFruta(); 
         } else {
             cuerpo.pop_back();
@@ -2436,13 +2824,18 @@ public:
         // Longitud
         sprintf(buf, "Longitud: %d", (int)cuerpo.size());
         TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        // Total de frutas comidas
+        sprintf(buf, "Frutas comidas: %d", total_frutas_comidas);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
         currentY += lineHeight + 15;
         
         // Tabla de puntajes de frutas
         TextOutA(hdc, panelX, currentY, "Puntos por fruta:", 17);
         currentY += lineHeight;
         
-        // Dibujar cada tipo de fruta con su color y puntos
+        // Dibujar cada tipo de fruta con su color, puntos y contador
         vector<string> frutas;
         frutas.push_back("manzana");
         frutas.push_back("cereza");
@@ -2453,6 +2846,14 @@ public:
             string tipo = frutas[i];
             int pts = obtenerPuntosFruta(tipo);
             
+            // Obtener contador según el tipo de fruta
+            int contador = 0;
+            if (tipo == "manzana") contador = contador_manzana;
+            else if (tipo == "cereza") contador = contador_cereza;
+            else if (tipo == "banana") contador = contador_banana;
+            else if (tipo == "uva") contador = contador_uva;
+            else if (tipo == "naranja") contador = contador_naranja;
+            
             // Dibujar cuadro de color de la fruta
             COLORREF color_fr = ColorRGB(255, 80, 80);
             if (tipo == "banana") color_fr = ColorRGB(255, 255, 0);
@@ -2461,8 +2862,8 @@ public:
             
             FillRectColor(hdc, panelX, currentY, 12, 12, color_fr);
             
-            // Texto con nombre y puntos
-            sprintf(buf, " %s: %d pts", tipo.c_str(), pts);
+            // Texto con nombre, puntos y contador
+            sprintf(buf, " %s: %d pts x%d", tipo.c_str(), pts, contador);
             TextOutA(hdc, panelX + 15, currentY, buf, (int)strlen(buf));
             currentY += lineHeight;
         }

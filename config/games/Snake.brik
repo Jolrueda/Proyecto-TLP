@@ -55,6 +55,31 @@ color_banana = "amarillo"
 color_uva = "magenta"
 color_naranja = "naranja"
 
+// EFECTOS DE FRUTAS - Cada fruta tiene efectos únicos en el juego
+// crecimiento_X: Cuánto crece la serpiente (positivo = crece, negativo = se acorta)
+// velocidad_X: Cambio en velocidad en ms (positivo = más lento, negativo = más rápido)
+// Nota: velocidad más baja = más rápido, velocidad más alta = más lento
+
+// Manzana: Disminuye la longitud (se acorta 1 segmento)
+crecimiento_manzana = -1
+velocidad_manzana = 0
+
+// Cereza: Hace más lento el juego (ralentiza)
+crecimiento_cereza = 0
+velocidad_cereza = 20
+
+// Banana (amarilla): Aumenta velocidad (hace el juego más rápido)
+crecimiento_banana = 0
+velocidad_banana = -15
+
+// Uva (morada): Aumenta 2 de tamaño (crece 2 segmentos)
+crecimiento_uva = 2
+velocidad_uva = 0
+
+// Naranja: Efecto normal (crece 1, sin cambio de velocidad)
+crecimiento_naranja = 1
+velocidad_naranja = 0
+
 // Fruta por defecto (para compatibilidad)
 color_fruta = "rojo"
 color_obstaculo = "gris"

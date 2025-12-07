@@ -114,9 +114,21 @@ public:
                 continue;
             }
 
-            // Números (enteros y decimales)
-            if (isdigit(caracter_actual)) {
+            // Números (enteros y decimales, incluyendo negativos)
+            // Verificar si es un número (puede empezar con '-' seguido de dígito)
+            bool es_numero = isdigit(caracter_actual);
+            bool es_negativo = false;
+            if (caracter_actual == '-' && pos_actual_ + 1 < fuente_.length() && isdigit(fuente_[pos_actual_ + 1])) {
+                es_numero = true;
+                es_negativo = true;
+            }
+            
+            if (es_numero) {
                 string numero;
+                if (es_negativo) {
+                    numero += '-';
+                    pos_actual_++; // Avanzar después del '-'
+                }
                 bool tiene_punto = false;
                 
                 while (pos_actual_ < fuente_.length()) {
@@ -241,8 +253,8 @@ public:
                 continue;
             }
 
-            // Otros operadores básicos
-            if (caracter_actual == '+' || caracter_actual == '-' || caracter_actual == '*' || 
+            // Otros operadores básicos (excluyendo '-' que ya se maneja para números negativos)
+            if (caracter_actual == '+' || caracter_actual == '*' || 
                 caracter_actual == '%' || caracter_actual == '!') {
                 Token top;
                 top.tipo = OPERADOR;
@@ -251,6 +263,24 @@ public:
                 cout << "TOKEN OPERADOR: " << caracter_actual << endl;
                 pos_actual_++;
                 continue;
+            }
+            
+            // Operador '-' solo si no es parte de un número negativo
+            if (caracter_actual == '-') {
+                // Verificar si el siguiente carácter es un dígito
+                if (pos_actual_ + 1 < fuente_.length() && isdigit(fuente_[pos_actual_ + 1])) {
+                    // Es parte de un número negativo, se manejará en la sección de números
+                    // No hacer nada aquí, dejar que el siguiente ciclo lo maneje
+                } else {
+                    // Es un operador de resta
+                    Token top;
+                    top.tipo = OPERADOR;
+                    top.valor = "-";
+                    tokens.push_back(top);
+                    cout << "TOKEN OPERADOR: -" << endl;
+                    pos_actual_++;
+                    continue;
+                }
             }
 
             // Saltamos caracteres no reconocidos (no imprimimos mensaje de error por ahora)
@@ -367,7 +397,9 @@ private:
     }
 
     const Token& obtener_token() {
-    if (idx_actual_ >= tokens_.size()) throw runtime_error("Error de sintaxis: Fin inesperado del archivo.");
+        // Saltar comentarios antes de obtener el token
+        while (idx_actual_ < tokens_.size() && tokens_[idx_actual_].tipo == COMENTARIO) idx_actual_++;
+        if (idx_actual_ >= tokens_.size()) throw runtime_error("Error de sintaxis: Fin inesperado del archivo.");
         return tokens_[idx_actual_++];
     }
 
@@ -380,8 +412,17 @@ private:
             // devolver cadena entre comillas
             return string("\"") + s + string("\"");
         }
-        if (tok.tipo == NUMERO || tok.tipo == IDENTIFICADOR) {
+        if (tok.tipo == NUMERO) {
             return obtener_token().valor;
+        }
+        if (tok.tipo == IDENTIFICADOR) {
+            string valor = obtener_token().valor;
+            // Verificar si es un valor booleano
+            if (valor == "true" || valor == "false") {
+                return valor;  // Devolver el valor booleano tal cual
+            }
+            // Si no es booleano, devolver como identificador
+            return valor;
         }
         if (tok.tipo == LLAVE_ABIERTA) {
             return parsearBloque();
@@ -389,7 +430,8 @@ private:
         if (tok.tipo == CORCHETE_ABIERTO) {
             return parsearLista();
         }
-    throw runtime_error("Error de sintaxis: Valor inesperado.");
+        // Si llegamos aquí, el token no es un tipo válido para un valor
+        throw runtime_error("Error de sintaxis: Valor inesperado.");
     }
 
     string parsearBloque() {

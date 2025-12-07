@@ -66,6 +66,19 @@ codigos_color = {
     gris: 8
 }
 
+// COLORES RGB PARA RENDERIZADO GRÁFICO (R, G, B)
+colores_rgb = {
+    cian: [0, 255, 255],      // Cyan brillante
+    azul: [0, 100, 255],      // Azul
+    naranja: [255, 165, 0],   // Naranja
+    amarillo: [255, 255, 0],  // Amarillo
+    verde: [0, 255, 0],       // Verde
+    rojo: [255, 0, 0],        // Rojo
+    magenta: [255, 0, 255],   // Magenta
+    blanco: [255, 255, 255],  // Blanco
+    gris: [128, 128, 128]     // Gris
+}
+
 // DEFINICIÓN DE PIEZAS CON TODAS SUS ROTACIONES
 piezas_rotaciones = {
     // Pieza I - Línea (4 rotaciones)
