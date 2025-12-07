@@ -1,10 +1,22 @@
-// Runtime unificado: permite elegir Tetris o Snake en un solo binario
-// Mantiene parsers AST simples y motores de juego con renderizado sin parpadeo.
-// Soporta modo CONSOLA (por defecto) y modo VENTANA GRAFICA (SDL2)
-
-// Define USE_SDL para habilitar el modo gráfico con SDL2
-// Compilar con: g++ -DUSE_SDL -o runtime runtime.cpp -lmingw32 -lSDL2main -lSDL2 -lSDL2_ttf
-// Sin SDL (solo consola): g++ -o runtime runtime.cpp
+// ============================================================================
+// RUNTIME UNIFICADO - MOTOR DE LADRILLOS
+// ============================================================================
+// Este archivo contiene el runtime principal que permite ejecutar juegos
+// de tipo "ladrillos" como Tetris y Snake en un solo binario.
+//
+// Características:
+//   - Parser AST simple para cargar configuraciones desde archivos .brik
+//   - Motor de Tetris con física completa y sistema de niveles
+//   - Motor de Snake con crecimiento y colisiones
+//   - Renderizado optimizado sin parpadeo
+//   - Soporte para modo consola (texto) y modo gráfico (ventana GDI)
+//   - Compatible con Windows XP (usa GetTickCount en lugar de <chrono>)
+//
+// Compilación:
+//   Modo consola:     g++ -o runtime runtime.cpp
+//   Modo gráfico GDI: g++ -DUSE_GDI -o runtime runtime.cpp -lgdi32 -luser32
+//
+// ============================================================================
 
 #include <algorithm>
 #include <ctime>
@@ -13,65 +25,106 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#ifdef USE_SDL
-// Note: avoid <random>/<chrono> to keep C++98 compatibility on older toolchains
-#endif
 #include <sstream>
 #include <string>
 #include <vector>
 #include <windows.h>
 
-#ifdef USE_SDL
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#endif
-
 using namespace std;
-// usando GetTickCount + <ctime> para compatibilidad C++03/Windows XP
 
-// Variable global para el modo de renderizado
-enum ModoRenderizado { MODO_CONSOLA = 1, MODO_VENTANA = 2 };
+// ============================================================================
+// CONFIGURACIÓN Y CONSTANTES GLOBALES
+// ============================================================================
+
+// Modo de renderizado disponible
+enum ModoRenderizado { 
+    MODO_CONSOLA = 1,  // Renderizado en consola con caracteres ASCII
+    MODO_VENTANA = 2   // Renderizado en ventana gráfica (requiere USE_GDI)
+};
+
+// Variable global que almacena el modo de renderizado seleccionado
 ModoRenderizado modoActual = MODO_CONSOLA;
 
 
+// ============================================================================
+// CLASE: ColorConsola
+// ============================================================================
+// Gestiona los colores de texto en la consola de Windows.
+// Guarda el color original y lo restaura automáticamente al destruirse.
+// ============================================================================
 class ColorConsola {
 private:
-    HANDLE hConsole;
-    WORD   color_original;
+    HANDLE hConsole;      // Handle de la consola de Windows
+    WORD   color_original; // Color original que se restaurará al destruirse
 
 public:
+    /**
+     * Constructor: obtiene el handle de la consola y guarda el color actual.
+     */
     ColorConsola() {
         hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         CONSOLE_SCREEN_BUFFER_INFO info;
         GetConsoleScreenBufferInfo(hConsole, &info);
         color_original = info.wAttributes;
     }
-    ~ColorConsola() { restaurarColor(); }
+    
+    /**
+     * Destructor: restaura el color original de la consola.
+     */
+    ~ColorConsola() { 
+        restaurarColor(); 
+    }
 
+    /**
+     * Establece el color del texto en la consola.
+     * @param codigo_color Código de color de Windows (WORD)
+     */
     void establecerColor(int codigo_color) {
         SetConsoleTextAttribute(hConsole, codigo_color);
     }
 
+    /**
+     * Restaura el color original de la consola.
+     */
     void restaurarColor() {
         SetConsoleTextAttribute(hConsole, color_original);
     }
 
-    // Mapeo por nombre para Snake
+   
     string obtenerColorAnsi(const string& nombre_color) {
-        if (nombre_color == "verde_claro" || nombre_color == "verde") return "\033[92m";
-        if (nombre_color == "verde_oscuro") return "\033[32m";
-        if (nombre_color == "verde_medio") return "\033[36m";
-        if (nombre_color == "rojo") return "\033[91m";
-        if (nombre_color == "amarillo") return "\033[93m";
-        if (nombre_color == "blanco") return "\033[97m";
-        if (nombre_color == "gris") return "\033[90m";
-        if (nombre_color == "negro") return "\033[30m";
-        return "\033[37m"; // Blanco por defecto
+        if (nombre_color == "verde_claro" || nombre_color == "verde") {
+            return "\033[92m";
+        }
+        if (nombre_color == "verde_oscuro") {
+            return "\033[32m";
+        }
+        if (nombre_color == "verde_medio") {
+            return "\033[36m";
+        }
+        if (nombre_color == "rojo") {
+            return "\033[91m";
+        }
+        if (nombre_color == "amarillo") {
+            return "\033[93m";
+        }
+        if (nombre_color == "blanco") {
+            return "\033[97m";
+        }
+        if (nombre_color == "gris") {
+            return "\033[90m";
+        }
+        if (nombre_color == "negro") {
+            return "\033[30m";
+        }
+        return "\033[37m";  // Blanco por defecto
     }
 };
 
-// Singleton compatible con el engine de 
-
+// ============================================================================
+// SINGLETON PARA GESTIÓN DE COLORES EN CONSOLA
+// ============================================================================
+// Proporciona una única instancia global de ColorConsola para evitar
+// múltiples inicializaciones del handle de consola.
 ColorConsola& obtenerColorConsola() {
     static ColorConsola instancia;
     return instancia;
@@ -118,6 +171,33 @@ private:
             integers["alto_tablero"] = extraerInt(linea);
         } else if (linea.find("\"velocidad_inicial\":") != string::npos) {
             integers["velocidad_inicial"] = extraerInt(linea);
+        } else if (linea.find("\"velocidad_caida_rapida\":") != string::npos) {
+            integers["velocidad_caida_rapida"] = extraerInt(linea);
+        } else if (linea.find("\"tiempo_fijacion_pieza\":") != string::npos) {
+            integers["tiempo_fijacion_pieza"] = extraerInt(linea);
+        } else if (linea.find("\"tiempo_antes_de_bloquear\":") != string::npos) {
+            integers["tiempo_antes_de_bloquear"] = extraerInt(linea);
+        } else if (linea.find("\"aceleracion_por_nivel\":") != string::npos) {
+            integers["aceleracion_por_nivel"] = extraerInt(linea);
+        } else if (linea.find("\"velocidad_maxima\":") != string::npos) {
+            integers["velocidad_maxima"] = extraerInt(linea);
+        } else if (linea.find("\"gravedad_automatica\":") != string::npos) {
+            // boolean-like
+            integers["gravedad_automatica"] = (linea.find("true") != string::npos) ? 1 : 0;
+        } else if (linea.find("\"lineas_para_nivel\":") != string::npos) {
+            integers["lineas_para_nivel"] = extraerInt(linea);
+        } else if (linea.find("\"tamanio_celda\":") != string::npos) {
+            integers["tamanio_celda"] = extraerInt(linea);
+        } else if (linea.find("\"nivel_inicial\":") != string::npos) {
+            integers["nivel_inicial"] = extraerInt(linea);
+        } else if (linea.find("\"puntos_linea_simple\":") != string::npos) {
+            integers["puntos_linea_simple"] = extraerInt(linea);
+        } else if (linea.find("\"puntos_linea_doble\":") != string::npos) {
+            integers["puntos_linea_doble"] = extraerInt(linea);
+        } else if (linea.find("\"puntos_linea_triple\":") != string::npos) {
+            integers["puntos_linea_triple"] = extraerInt(linea);
+        } else if (linea.find("\"puntos_linea_tetris\":") != string::npos) {
+            integers["puntos_linea_tetris"] = extraerInt(linea);
         } else if (linea.find("\"codigos_color\":") != string::npos) {
             parsearColores();
         } else if (linea.find("\"colores_piezas\":") != string::npos) {
@@ -205,6 +285,24 @@ private:
             arrays["colores_snake"] = extraerArray(linea);
         } else if (linea.find("\"color_fruta\":") != string::npos) {
             strings["color_fruta"] = extraerString(linea);
+        } else if (linea.find("\"frutas_disponibles\":") != string::npos) {
+            arrays["frutas_disponibles"] = extraerArray(linea);
+        } else if (linea.find("\"puntos_") != string::npos && linea.find(":") != string::npos) {
+            // Capturar dinámicamente puntos_manzana, puntos_cereza, etc.
+            size_t inicio_clave = linea.find("\"puntos_") + 1;
+            size_t fin_clave = linea.find("\"", inicio_clave + 7);
+            if (inicio_clave != string::npos && fin_clave != string::npos) {
+                string clave = linea.substr(inicio_clave, fin_clave - inicio_clave);
+                integers[clave] = extraerInt(linea);
+            }
+        } else if (linea.find("\"color_") != string::npos && linea.find(":") != string::npos && linea.find("color_fruta") == string::npos) {
+            // Capturar dinámicamente color_manzana, color_cereza, etc. (excluyendo color_fruta)
+            size_t inicio_clave = linea.find("\"color_") + 1;
+            size_t fin_clave = linea.find("\"", inicio_clave + 6);
+            if (inicio_clave != string::npos && fin_clave != string::npos) {
+                string clave = linea.substr(inicio_clave, fin_clave - inicio_clave);
+                strings[clave] = extraerString(linea);
+            }
         } else if (linea.find("\"mensaje_inicio\":") != string::npos) {
             strings["mensaje_inicio"] = extraerString(linea);
         } else if (linea.find("\"mensaje_game_over\":") != string::npos) {
@@ -261,10 +359,38 @@ public:
     int ancho_tablero;
     int alto_tablero;
     int velocidad_inicial;
+    // Physics and gameplay params read from AST
+    int velocidad_caida_rapida;
+    int tiempo_fijacion_pieza;
+    int tiempo_antes_de_bloquear;
+    int aceleracion_por_nivel;
+    int velocidad_maxima;
+    bool gravedad_automatica;
+    int lineas_para_nivel;
+    int tamanio_celda;
+    int nivel_inicial;
+    int puntos_linea_simple;
+    int puntos_linea_doble;
+    int puntos_linea_triple;
+    int puntos_linea_tetris;
 
     ConfigTetris() {
         cargarDesdeAST();
         configurarRotacionesHardcoded();
+    }
+public:
+    void printConfig() const {
+        std::cout << "[ConfigTetris] nombre_juego=" << nombre_juego
+                  << " ancho_tablero=" << ancho_tablero
+                  << " alto_tablero=" << alto_tablero
+                  << " tamanio_celda=" << tamanio_celda
+                  << " velocidad_inicial=" << velocidad_inicial
+                  << " aceleracion_por_nivel=" << aceleracion_por_nivel
+                  << " lineas_para_nivel=" << lineas_para_nivel
+                  << " nivel_inicial=" << nivel_inicial
+                  << " puntos_linea_simple=" << puntos_linea_simple
+                  << " puntos_linea_tetris=" << puntos_linea_tetris
+                  << std::endl;
     }
 private:
     void cargarDesdeAST() {
@@ -274,12 +400,40 @@ private:
             ancho_tablero = 10;
             alto_tablero = 20;
             velocidad_inicial = 800;
+            // defaults
+            velocidad_caida_rapida = 50;
+            tiempo_fijacion_pieza = 1000;
+            tiempo_antes_de_bloquear = 1000;
+            aceleracion_por_nivel = 50;
+            velocidad_maxima = 1000;
+            gravedad_automatica = true;
+            lineas_para_nivel = 10;
+            tamanio_celda = 30;
+            nivel_inicial = 1;
+            puntos_linea_simple = 100;
+            puntos_linea_doble = 300;
+            puntos_linea_triple = 500;
+            puntos_linea_tetris = 800;
             return;
         }
         nombre_juego = parser.obtenerString("nombre_juego", "Tetris Clásico");
         ancho_tablero = parser.obtenerInt("ancho_tablero", 10);
         alto_tablero = parser.obtenerInt("alto_tablero", 20);
         velocidad_inicial = parser.obtenerInt("velocidad_inicial", 800);
+        // Read additional physics/gameplay params
+        velocidad_caida_rapida = parser.obtenerInt("velocidad_caida_rapida", 50);
+        tiempo_fijacion_pieza = parser.obtenerInt("tiempo_fijacion_pieza", 1000);
+        tiempo_antes_de_bloquear = parser.obtenerInt("tiempo_antes_de_bloquear", 1000);
+        aceleracion_por_nivel = parser.obtenerInt("aceleracion_por_nivel", 50);
+        velocidad_maxima = parser.obtenerInt("velocidad_maxima", 1000);
+        gravedad_automatica = (parser.obtenerInt("gravedad_automatica", 1) != 0);
+        lineas_para_nivel = parser.obtenerInt("lineas_para_nivel", 10);
+        tamanio_celda = parser.obtenerInt("tamanio_celda", 30);
+        nivel_inicial = parser.obtenerInt("nivel_inicial", 1);
+        puntos_linea_simple = parser.obtenerInt("puntos_linea_simple", 100);
+        puntos_linea_doble = parser.obtenerInt("puntos_linea_doble", 300);
+        puntos_linea_triple = parser.obtenerInt("puntos_linea_triple", 500);
+        puntos_linea_tetris = parser.obtenerInt("puntos_linea_tetris", 800);
         {
             vector<string> tmp_tipos;
             tmp_tipos.push_back("I"); tmp_tipos.push_back("J"); tmp_tipos.push_back("L");
@@ -520,6 +674,8 @@ private:
     int nivel;
     int lineas_completadas;
     int velocidad_caida;
+    DWORD last_horiz_move;
+    DWORD last_soft_drop;
 
     bool juego_activo;
     bool pausado;
@@ -561,6 +717,12 @@ public:
         ultima_caida      = ahora;
         // Inicializar semilla aleatoria
         srand((unsigned)time(NULL));
+        last_horiz_move = GetTickCount();
+        last_soft_drop = GetTickCount();
+        // Apply config-driven physics
+        nivel = config.nivel_inicial;
+        velocidad_caida = config.velocidad_inicial;
+        lineas_completadas = 0;
         generarNuevaPieza();
         generarSiguientePieza();
     }
@@ -657,10 +819,14 @@ public:
             calcularPuntos(static_cast<int>(lineas.size()));
             lineas_completadas += static_cast<int>(lineas.size());
 
-            int nuevo_nivel = (lineas_completadas / 10) + 1;
+            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + config.nivel_inicial;
             if (nuevo_nivel > nivel) {
                 nivel = nuevo_nivel;
-                velocidad_caida = max(100, 800 - (nivel * 50));
+                // decrease fall interval according to aceleracion_por_nivel
+                int decrement = (nivel - config.nivel_inicial) * config.aceleracion_por_nivel;
+                int nueva_vel = config.velocidad_inicial - decrement;
+                if (nueva_vel < 50) nueva_vel = 50; // cap minimum interval
+                velocidad_caida = nueva_vel;
             }
         }
     }
@@ -683,10 +849,10 @@ public:
 
     void calcularPuntos(int n) {
         switch (n) {
-            case 1: puntos += 100 * nivel; break;
-            case 2: puntos += 300 * nivel; break;
-            case 3: puntos += 500 * nivel; break;
-            case 4: puntos += 800 * nivel; break; // TETRIS
+            case 1: puntos += config.puntos_linea_simple * nivel; break;
+            case 2: puntos += config.puntos_linea_doble * nivel; break;
+            case 3: puntos += config.puntos_linea_triple * nivel; break;
+            case 4: puntos += config.puntos_linea_tetris * nivel; break; // TETRIS
         }
     }
 
@@ -703,25 +869,45 @@ public:
             return;
         }
         switch (t) {
-            case 'a':
-                if (esMovimientoValido(pieza_actual->x - 1, pieza_actual->y, pieza_actual->rotacion_actual)) pieza_actual->x--;
-                break;
-            case 'd':
-                if (esMovimientoValido(pieza_actual->x + 1, pieza_actual->y, pieza_actual->rotacion_actual)) pieza_actual->x++;
-                break;
-            case 's':
-                while (esMovimientoValido(pieza_actual->x, pieza_actual->y + 1, pieza_actual->rotacion_actual)) {
-                    pieza_actual->y++;
-                    puntos += 1;
+            case 'a': {
+                DWORD ahora = GetTickCount();
+                if (ahora - last_horiz_move >= 120) {
+                    if (esMovimientoValido(pieza_actual->x - 1, pieza_actual->y, pieza_actual->rotacion_actual)) pieza_actual->x--;
+                    last_horiz_move = ahora;
                 }
-                fijarPieza();
                 break;
+            }
+            case 'd': {
+                DWORD ahora = GetTickCount();
+                if (ahora - last_horiz_move >= 120) {
+                    if (esMovimientoValido(pieza_actual->x + 1, pieza_actual->y, pieza_actual->rotacion_actual)) pieza_actual->x++;
+                    last_horiz_move = ahora;
+                }
+                break;
+            }
+            case 's': {
+                // soft drop: descend one cell per key event (rate-limited)
+                DWORD ahora = GetTickCount();
+                if (ahora - last_soft_drop >= 80) {
+                    if (esMovimientoValido(pieza_actual->x, pieza_actual->y + 1, pieza_actual->rotacion_actual)) {
+                        pieza_actual->y++;
+                    } else {
+                        fijarPieza();
+                    }
+                    last_soft_drop = ahora;
+                }
+                break;
+            }
             case 'w':
             case ' ': {
-                int nr = (pieza_actual->rotacion_actual + 1) % static_cast<int>(pieza_actual->rotaciones.size());
-                if (esMovimientoValido(pieza_actual->x, pieza_actual->y, nr)) {
-                    pieza_actual->rotacion_actual = nr;
-                    //puntos += 10;
+                static DWORD last_rotate = 0;
+                DWORD ahoraR = GetTickCount();
+                if (ahoraR - last_rotate >= 200) {
+                    int nr = (pieza_actual->rotacion_actual + 1) % static_cast<int>(pieza_actual->rotaciones.size());
+                    if (esMovimientoValido(pieza_actual->x, pieza_actual->y, nr)) {
+                        pieza_actual->rotacion_actual = nr;
+                    }
+                    last_rotate = ahoraR;
                 }
                 break;
             }
@@ -743,9 +929,9 @@ public:
             }
         }
         puntos            = 0;
-        nivel             = 1;
+        nivel             = config.nivel_inicial;
         lineas_completadas = 0;
-        velocidad_caida   = 800;
+        velocidad_caida   = config.velocidad_inicial;
         game_over         = false;
         juego_activo      = true;
         pausado           = false;
@@ -916,6 +1102,7 @@ private:
     vector<Posicion>   cuerpo_snake;
     Posicion           direccion_actual;
     Posicion           fruta_posicion;
+    string             fruta_tipo_actual;  // Tipo de fruta actual (manzana, cereza, etc.)
     bool               juego_activo;
     bool               pausado;
     bool               game_over;
@@ -962,6 +1149,7 @@ private:
             cuerpo_snake.push_back(Posicion(cx - i, cy));
         }
         direccion_actual = Posicion(1, 0);
+        fruta_tipo_actual = "manzana";  // Inicializar tipo de fruta
         generarNuevaFruta();
         puntos    = 0;
         game_over = false;
@@ -977,6 +1165,23 @@ private:
             int ry = (rand() % (maxy - miny + 1)) + miny;
             fruta_posicion = Posicion(rx, ry);
         } while (esPosicionOcupadaPorSnake(fruta_posicion));
+        
+        // Seleccionar tipo de fruta aleatorio
+        vector<string> frutas_disponibles;
+        if (config.arrays.count("frutas_disponibles")) {
+            frutas_disponibles = config.arrays["frutas_disponibles"];
+        } else {
+            // Frutas por defecto
+            frutas_disponibles.push_back("manzana");
+            frutas_disponibles.push_back("cereza");
+            frutas_disponibles.push_back("banana");
+        }
+        
+        if (!frutas_disponibles.empty()) {
+            fruta_tipo_actual = frutas_disponibles[rand() % frutas_disponibles.size()];
+        } else {
+            fruta_tipo_actual = "manzana";  // Por defecto
+        }
     }
 
     bool esPosicionOcupadaPorSnake(const Posicion& p) {
@@ -1042,9 +1247,26 @@ private:
 
         cuerpo_snake.insert(cuerpo_snake.begin(), nueva);
         if (nueva == fruta_posicion) {
+            // Calcular puntos según el tipo de fruta
             int pf = config.integers.count("puntos_por_fruta")
                    ? config.integers["puntos_por_fruta"]
-                   : 100;
+                   : 10;
+            
+            // Buscar puntos específicos del tipo de fruta en el AST
+            // Formato esperado: "puntos_manzana", "puntos_cereza", etc.
+            string clave_puntos = "puntos_" + fruta_tipo_actual;
+            if (config.integers.count(clave_puntos)) {
+                pf = config.integers[clave_puntos];
+            } else {
+                // Intentar obtener desde objetos anidados (si el parser lo soporta)
+                // Por ahora usamos valores por defecto según el tipo
+                if (fruta_tipo_actual == "manzana") pf = 10;
+                else if (fruta_tipo_actual == "cereza") pf = 20;
+                else if (fruta_tipo_actual == "banana") pf = 15;
+                else if (fruta_tipo_actual == "uva") pf = 25;
+                else if (fruta_tipo_actual == "naranja") pf = 30;
+            }
+            
             puntos += pf;
             generarNuevaFruta();
         } else {
@@ -1100,11 +1322,30 @@ private:
                 char   ch  = ' ';
                 string col = "\033[37m";
                 if (Posicion(x, y) == fruta_posicion) {
-                    string cf = config.strings.count("color_fruta")
-                              ? config.strings["color_fruta"]
-                              : string("rojo");
+                    // Obtener color según el tipo de fruta actual
+                    string color_fruta = "rojo";  // Por defecto
+                    
+                    // Buscar color específico del tipo de fruta
+                    string clave_color = "color_" + fruta_tipo_actual;
+                    if (config.strings.count(clave_color)) {
+                        color_fruta = config.strings[clave_color];
+                    } else {
+                        // Valores por defecto según tipo de fruta
+                        if (fruta_tipo_actual == "manzana") color_fruta = "rojo";
+                        else if (fruta_tipo_actual == "cereza") color_fruta = "rojo";
+                        else if (fruta_tipo_actual == "banana") color_fruta = "amarillo";
+                        else if (fruta_tipo_actual == "uva") color_fruta = "magenta";
+                        else if (fruta_tipo_actual == "naranja") color_fruta = "naranja";
+                        else {
+                            // Fallback al color_fruta general
+                            color_fruta = config.strings.count("color_fruta")
+                                        ? config.strings["color_fruta"]
+                                        : string("rojo");
+                        }
+                    }
+                    
                     ch  = '@';
-                    col = colorConsola.obtenerColorAnsi(cf);
+                    col = colorConsola.obtenerColorAnsi(color_fruta);
                 } else {
                     bool es_cuerpo = false;
                     for (size_t i = 0; i < cuerpo_snake.size(); ++i) {
@@ -1166,830 +1407,1180 @@ public:
     }
 };
 
-// ================================================================
-// Runtime selector
-// ================================================================
-static void compilarJuegoSiPosible(const string& juego){
-    // Intenta invocar el compilador con el .brik correspondiente (opcional)
+// ============================================================================
+// FUNCIÓN: compilarJuegoSiPosible
+// ============================================================================
+// Intenta compilar el juego especificado antes de ejecutarlo.
+// Esto asegura que el AST esté actualizado con la última configuración.
+// @param juego Nombre del juego a compilar ("tetris" o "snake")
+// ============================================================================
+static void compilarJuegoSiPosible(const string& juego) {
+    // Construir comando de compilación según el juego
     string comando;
-    if (juego == "tetris")      comando = "bin\\compilador.exe config\\games\\Tetris.brik";
-    else if (juego == "snake")  comando = "bin\\compilador.exe config\\games\\Snake.brik";
-    else return;
-    // Ejecutar de forma silenciosa si existe el compilador
+    if (juego == "tetris") {
+        comando = "bin\\compilador.exe config\\games\\Tetris.brik";
+    } else if (juego == "snake") {
+        comando = "bin\\compilador.exe config\\games\\Snake.brik";
+    } else {
+        return;  // Juego no reconocido
+    }
+    
+    // Verificar que el compilador existe antes de ejecutarlo
     DWORD attrs = GetFileAttributesA("bin\\compilador.exe");
     if (attrs != INVALID_FILE_ATTRIBUTES && !(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
         system(comando.c_str());
     }
 }
 
-// ================================================================
-// SDL2 - Motores gráficos (solo disponible si se compila con USE_SDL)
-// ================================================================
-#ifdef USE_SDL
+// ============================================================================
+// RENDERIZADOR GDI (WINDOWS) - Alternativa ligera compatible con Windows XP
+// ============================================================================
+// Motor de renderizado gráfico usando GDI (Graphics Device Interface) nativo
+// de Windows. No requiere DLLs externas y es compatible con Windows XP.
+//
+// Características:
+//   - Renderizado en ventana nativa de Windows
+//   - Doble buffer para evitar parpadeo
+//   - Manejo de entrada mediante GetAsyncKeyState
+//   - Soporte completo para Tetris y Snake
+//
+// Compilar con: g++ -DUSE_GDI -o runtime runtime.cpp -lgdi32 -luser32
+// ============================================================================
+#ifdef USE_GDI
 
-// Colores SDL para las piezas de Tetris
-SDL_Color obtenerColorSDL(int codigo) {
-    switch (codigo) {
-        case 9:  return {0, 100, 255, 255};   // Azul
-        case 10: return {0, 255, 100, 255};   // Verde
-        case 11: return {0, 255, 255, 255};   // Cian
-        case 12: return {255, 100, 0, 255};   // Naranja/Rojo
-        case 13: return {200, 0, 200, 255};   // Magenta
-        case 14: return {255, 255, 0, 255};   // Amarillo
-        case 15: return {255, 255, 255, 255}; // Blanco
-        default: return {128, 128, 128, 255}; // Gris
+// Renderizador simple de ventana Win32 con doble buffer. Este es un prototipo
+// minimalista diseñado para proporcionar una alternativa gráfica en Windows
+// (incluyendo XP) usando GDI. Implementa renderizado básico y manejo de teclado
+// para ambos juegos (Tetris y Snake). No es idéntico en características a
+// renderizadores anteriores pero proporciona funcionalidad esencial.
+
+// Variables globales para la ventana GDI
+static HWND g_hWnd = NULL;      // Handle de la ventana principal
+static bool g_running = true;    // Flag para controlar el bucle principal
+
+
+LRESULT CALLBACK GDIWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+        case WM_DESTROY:
+            // La ventana se está destruyendo, terminar el bucle principal
+            g_running = false;
+            PostQuitMessage(0);
+            return 0;
+            
+        case WM_CLOSE:
+            // Cerrar la ventana
+            DestroyWindow(hwnd);
+            return 0;
     }
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-SDL_Color obtenerColorSnakeSDL(const string& nombre) {
-    if (nombre == "verde_claro" || nombre == "verde") return {50, 255, 50, 255};
-    if (nombre == "verde_oscuro") return {0, 150, 0, 255};
-    if (nombre == "verde_medio") return {0, 200, 100, 255};
-    if (nombre == "rojo") return {255, 50, 50, 255};
-    if (nombre == "amarillo") return {255, 255, 0, 255};
-    if (nombre == "blanco") return {255, 255, 255, 255};
-    if (nombre == "gris") return {128, 128, 128, 255};
-    return {255, 255, 255, 255};
+/**
+ * Crea una ventana GDI para renderizado gráfico.
+ * @param title Título de la ventana
+ * @param w Ancho de la ventana en píxeles
+ * @param h Alto de la ventana en píxeles
+ * @return true si la ventana se creó correctamente, false en caso contrario
+ */
+static bool createGDIWindow(const char* title, int w, int h) {
+    WNDCLASSEXA wc;
+    ZeroMemory(&wc, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.style = CS_HREDRAW | CS_VREDRAW;  // Redibujar cuando cambia el tamaño
+    wc.lpfnWndProc = (WNDPROC)GDIWndProc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = "LadrillosGDIClass";
+    
+    // Registrar la clase de ventana (puede fallar si ya está registrada)
+    if (!RegisterClassExA(&wc)) {
+        // La clase puede estar ya registrada, continuar de todas formas
+    }
+    
+    // Crear la ventana
+    g_hWnd = CreateWindowExA(0, wc.lpszClassName, title,
+                             WS_OVERLAPPEDWINDOW & ~WS_MAXIMIZEBOX,  // Sin botón maximizar
+                             CW_USEDEFAULT, CW_USEDEFAULT,
+                             w, h,
+                             NULL, NULL, wc.hInstance, NULL);
+    
+    if (!g_hWnd) {
+        return false;
+    }
+    
+    // Mostrar y actualizar la ventana
+    ShowWindow(g_hWnd, SW_SHOW);
+    UpdateWindow(g_hWnd);
+    return true;
 }
 
-// ================================================================
-// TetrisEngineSDL - Versión gráfica de Tetris
-// ================================================================
-class TetrisEngineSDL {
-private:
-    static const int ANCHO = 10;
-    static const int ALTO  = 20;
-    static const int CELL_SIZE = 30;
-    static const int OFFSET_X = 50;
-    static const int OFFSET_Y = 50;
+// ============================================================================
+// FUNCIONES AUXILIARES PARA RENDERIZADO GDI
+// ============================================================================
 
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    TTF_Font* font;
+static void FillRectColor(HDC hdc, int x, int y, int w, int h, COLORREF col) {
+    HBRUSH brush = CreateSolidBrush(col);
+    RECT r = { x, y, x + w - 1, y + h - 1 };
+    FillRect(hdc, &r, brush);
+    DeleteObject(brush);
+}
 
-    vector<vector<TipoPieza>>   tablero;
-    vector<vector<ColorTetris>> colores_tablero;
+/**
+ * Convierte valores RGB individuales a un COLORREF de Windows.
+ * @param r Componente rojo (0-255)
+ * @param g Componente verde (0-255)
+ * @param b Componente azul (0-255)
+ * @return COLORREF listo para usar en funciones GDI
+ */
+static COLORREF ColorRGB(int r, int g, int b) { 
+    return RGB(r, g, b); 
+}
 
-    PiezaTetris* pieza_actual;
-    PiezaTetris* siguiente_pieza;
-
-    int puntos;
-    int nivel;
-    int lineas_completadas;
-    int velocidad_caida;
-
-    bool juego_activo;
-    bool pausado;
-    bool game_over;
-
-    DWORD ultima_caida;
-    ConfigTetris config;
-
+// ============================================================================
+// CLASE: TetrisEngineGDI
+// ============================================================================
+// Motor de Tetris con renderizado gráfico usando GDI (Graphics Device Interface).
+// Esta implementación es compatible con Windows XP y no requiere DLLs externas.
+// Utiliza ventanas nativas de Windows y funciones GDI para el renderizado.
+// ============================================================================
+class TetrisEngineGDI {
 public:
-    TetrisEngineSDL()
-        : tablero(ALTO, vector<TipoPieza>(ANCHO, VACIO))
-        , colores_tablero(ALTO, vector<ColorTetris>(ANCHO, GRIS))
+    // Constantes del tablero de Tetris
+    static const int ANCHO = 10;  // Ancho del tablero en celdas
+    static const int ALTO  = 20;  // Alto del tablero en celdas
+    
+    // Configuración de renderizado
+    int cell;      // Tamaño de cada celda en píxeles
+    int offsetX;   // Desplazamiento horizontal del tablero en píxeles
+    int offsetY;   // Desplazamiento vertical del tablero en píxeles
+
+    // Estado del juego
+    vector<vector<TipoPieza> > tablero;  // Matriz que representa el tablero
+    PiezaTetris* pieza_actual;           // Pieza que está cayendo actualmente
+    PiezaTetris* siguiente_pieza;        // Siguiente pieza que aparecerá
+    ConfigTetris config;                  // Configuración cargada desde AST
+
+    // Estadísticas y progreso
+    int puntos;              // Puntuación actual del jugador
+    int velocidad_caida;     // Velocidad de caída en milisegundos
+    int nivel;               // Nivel actual del juego
+    int lineas_completadas;  // Total de líneas completadas
+
+    // Estados del juego
+    bool juego_activo;  // Indica si el juego está en ejecución
+    bool pausado;       // Indica si el juego está pausado
+    bool game_over;     // Indica si el juego ha terminado
+
+    // Temporizadores para control de movimiento
+    DWORD ultima_caida;        // Último momento en que la pieza cayó automáticamente
+    DWORD last_horiz_move;     // Último momento de movimiento horizontal
+    DWORD last_soft_drop;     // Último momento de caída rápida (tecla S)
+    DWORD last_rotate;         // Último momento de rotación
+    
+    // Estados anteriores de teclas para detección de flanco
+    bool w_presionada_anterior;      // Estado anterior de la tecla W
+    bool space_presionada_anterior;  // Estado anterior de la tecla Espacio
+
+    /**
+     * Constructor del motor de Tetris GDI.
+     * @param forced_cell Tamaño forzado de celda en píxeles (0 = usar configuración AST)
+     */
+    TetrisEngineGDI(int forced_cell = 0) 
+        : cell(24)
+        , offsetX(20)
+        , offsetY(20)
         , pieza_actual(NULL)
         , siguiente_pieza(NULL)
         , puntos(0)
+        , velocidad_caida(800)
         , nivel(1)
         , lineas_completadas(0)
-        , velocidad_caida(800)
         , juego_activo(true)
         , pausado(false)
-        , game_over(false)
-        , window(NULL)
-        , renderer(NULL)
-        , font(NULL) {
+        , game_over(false) {
         
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-            cerr << "Error SDL: " << SDL_GetError() << endl;
-            juego_activo = false;
-            return;
-        }
+        // Inicializar tablero vacío
+        tablero.assign(ALTO, vector<TipoPieza>(ANCHO, VACIO));
         
-        if (TTF_Init() < 0) {
-            cerr << "Error SDL_ttf: " << TTF_GetError() << endl;
-        }
-
-        window = SDL_CreateWindow("Tetris - Motor de Ladrillos",
-                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  600, 700, SDL_WINDOW_SHOWN);
-        if (!window) {
-            cerr << "Error creando ventana: " << SDL_GetError() << endl;
-            juego_activo = false;
-            return;
-        }
-
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-        if (!renderer) {
-            cerr << "Error creando renderer: " << SDL_GetError() << endl;
-            juego_activo = false;
-            return;
-        }
-
-        // Intentar cargar una fuente del sistema
-        font = TTF_OpenFont("C:\\Windows\\Fonts\\consola.ttf", 18);
-        if (!font) font = TTF_OpenFont("C:\\Windows\\Fonts\\arial.ttf", 18);
-
-        // Inicializar semilla y temporizador en ms (GetTickCount)
+        // Inicializar temporizadores
+        DWORD ahora = GetTickCount();
+        ultima_caida = ahora;
+        last_horiz_move = ahora;
+        last_soft_drop = ahora;
+        last_rotate = ahora;
+        
+        // Inicializar estados de teclas
+        w_presionada_anterior = false;
+        space_presionada_anterior = false;
+        
+        // Inicializar generador de números aleatorios
         srand((unsigned)time(NULL));
-        ultima_caida = GetTickCount();
+        
+        // Aplicar configuración desde AST
+        if (forced_cell > 0) {
+            cell = forced_cell;
+        } else {
+            cell = config.tamanio_celda;
+        }
+        velocidad_caida = config.velocidad_inicial;
+        nivel = config.nivel_inicial;
+        
+        // Generar primera pieza y siguiente pieza
         generarNuevaPieza();
         generarSiguientePieza();
     }
 
-    ~TetrisEngineSDL() {
+    /**
+     * Destructor: libera la memoria de las piezas.
+     */
+    ~TetrisEngineGDI() { 
         delete pieza_actual;
         delete siguiente_pieza;
-        if (font) TTF_CloseFont(font);
-        if (renderer) SDL_DestroyRenderer(renderer);
-        if (window) SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
     }
-
+    /**
+     * Genera una nueva pieza que comenzará a caer.
+     * Si hay una siguiente pieza preparada, la usa; si no, genera una aleatoria.
+     */
     void generarNuevaPieza() {
         if (siguiente_pieza) {
+            // Usar la siguiente pieza que ya estaba preparada
             delete pieza_actual;
             pieza_actual = siguiente_pieza;
             siguiente_pieza = NULL;
         } else {
+            // Generar una nueva pieza aleatoria
             pieza_actual = new PiezaTetris(static_cast<TipoPieza>(rand() % 7), config);
         }
+        
+        // Posicionar la pieza en la parte superior central del tablero
         pieza_actual->x = ANCHO / 2 - 2;
         pieza_actual->y = 0;
         pieza_actual->rotacion_actual = 0;
-
+        
+        // Verificar si la pieza puede colocarse (si no, game over)
         if (!esMovimientoValido(pieza_actual->x, pieza_actual->y, pieza_actual->rotacion_actual)) {
             game_over = true;
+            // NO cerrar el juego, permitir reiniciar
+            // juego_activo se mantiene en true para que el bucle continúe
         }
     }
 
+    /**
+     * Genera la siguiente pieza que aparecerá después de la actual.
+     * Esta pieza se prepara de antemano para una transición suave.
+     */
     void generarSiguientePieza() {
         siguiente_pieza = new PiezaTetris(static_cast<TipoPieza>(rand() % 7), config);
     }
-
+   
     bool esMovimientoValido(int nx, int ny, int nr) {
-        if (!pieza_actual) return false;
+        if (!pieza_actual) {
+            return false;
+        }
+        
         vector<vector<int> >& forma = pieza_actual->rotaciones[nr];
         int h = (int)forma.size();
         int w = (int)forma[0].size();
 
+        // Verificar cada bloque de la pieza
         for (int py = 0; py < h; ++py) {
             for (int px = 0; px < w; ++px) {
                 if (forma[py][px] == 1) {
                     int wx = nx + px;
                     int wy = ny + py;
-                    if (wx < 0 || wx >= ANCHO || wy >= ALTO) return false;
-                    if (wy >= 0 && tablero[wy][wx] != VACIO) return false;
+                    
+                    // Verificar límites del tablero
+                    if (wx < 0 || wx >= ANCHO || wy >= ALTO) {
+                        return false;
+                    }
+                    
+                    // Verificar colisión con bloques ya colocados
+                    if (wy >= 0 && tablero[wy][wx] != VACIO) {
+                        return false;
+                    }
                 }
             }
         }
+        
         return true;
     }
-
+    /**
+     * Fija la pieza actual en el tablero cuando no puede seguir cayendo.
+     * Después de fijar, verifica líneas completas y genera nuevas piezas.
+     */
     void fijarPieza() {
-        if (!pieza_actual) return;
+        if (!pieza_actual) {
+            return;
+        }
+        
+        // Obtener la forma actual de la pieza según su rotación
         vector<vector<int> >& forma = pieza_actual->rotaciones[pieza_actual->rotacion_actual];
         int h = (int)forma.size();
         int w = (int)forma[0].size();
 
+        // Colocar cada bloque de la pieza en el tablero
         for (int py = 0; py < h; ++py) {
             for (int px = 0; px < w; ++px) {
                 if (forma[py][px] == 1) {
                     int wx = pieza_actual->x + px;
                     int wy = pieza_actual->y + py;
+                    
+                    // Solo colocar si está dentro de los límites del tablero
                     if (wy >= 0 && wx >= 0 && wx < ANCHO && wy < ALTO) {
                         tablero[wy][wx] = pieza_actual->tipo;
-                        colores_tablero[wy][wx] = pieza_actual->color;
                     }
                 }
             }
         }
+        
+        // Verificar y eliminar líneas completas
         verificarLineasCompletas();
+        
+        // Generar nueva pieza y preparar la siguiente
         generarNuevaPieza();
         generarSiguientePieza();
     }
 
+    /**
+     * Elimina las líneas completas del tablero y hace caer las líneas superiores.
+     * @param lineas Vector con los índices de las líneas a eliminar
+     */
+    void eliminarLineas(const vector<int>& lineas) {
+        if (lineas.empty()) {
+            return;
+        }
+        
+        // Crear un vector de booleanos para marcar qué líneas eliminar
+        vector<bool> marcar_eliminar(ALTO, false);
+        for (size_t i = 0; i < lineas.size(); ++i) {
+            if (lineas[i] >= 0 && lineas[i] < ALTO) {
+                marcar_eliminar[lineas[i]] = true;
+            }
+        }
+        
+        // Crear nuevo tablero copiando solo las líneas que NO se eliminan
+        vector<vector<TipoPieza> > nuevo_tablero(ALTO, vector<TipoPieza>(ANCHO, VACIO));
+        int destino = ALTO - 1;
+        
+        // Copiar líneas de abajo hacia arriba, saltando las que se eliminan
+        // Esto hace que las líneas superiores "caigan" automáticamente
+        for (int origen = ALTO - 1; origen >= 0; --origen) {
+            if (!marcar_eliminar[origen]) {
+                // Esta línea se mantiene, copiarla a su nueva posición
+                for (int x = 0; x < ANCHO; ++x) {
+                    nuevo_tablero[destino][x] = tablero[origen][x];
+                }
+                destino--;
+            }
+        }
+        
+        // Las líneas superiores ya están con VACIO por defecto
+        // Reemplazar el tablero antiguo con el nuevo
+        tablero = nuevo_tablero;
+    }
+
+    /**
+     * Verifica si hay líneas completas en el tablero y las elimina.
+     * También actualiza la puntuación, nivel y velocidad según las líneas eliminadas.
+     */
     void verificarLineasCompletas() {
-        vector<int> lineas;
+        vector<int> lineas_completas;
+        
+        // Revisar cada línea del tablero
         for (int y = 0; y < ALTO; ++y) {
             bool completa = true;
+            
+            // Verificar si todos los espacios de la línea están ocupados
             for (int x = 0; x < ANCHO; ++x) {
                 if (tablero[y][x] == VACIO) {
                     completa = false;
                     break;
                 }
             }
-            if (completa) lineas.push_back(y);
+            
+            // Si la línea está completa, agregarla a la lista
+            if (completa) {
+                lineas_completas.push_back(y);
+            }
         }
-
-        if (!lineas.empty()) {
-            eliminarLineas(lineas);
-            calcularPuntos((int)lineas.size());
-            lineas_completadas += (int)lineas.size();
-
-            int nuevo_nivel = (lineas_completadas / 10) + 1;
+        
+        // Si hay líneas completas, procesarlas
+        if (!lineas_completas.empty()) {
+            // Eliminar las líneas del tablero
+            eliminarLineas(lineas_completas);
+            
+            // Calcular puntos según el número de líneas eliminadas
+            calcularPuntos((int)lineas_completas.size());
+            
+            // Actualizar contador de líneas completadas
+            lineas_completadas += (int)lineas_completas.size();
+            
+            // Calcular nuevo nivel basado en líneas completadas
+            int nuevo_nivel = (lineas_completadas / config.lineas_para_nivel) + config.nivel_inicial;
+            
+            // Si subió de nivel, aumentar la velocidad
             if (nuevo_nivel > nivel) {
                 nivel = nuevo_nivel;
-                velocidad_caida = max(100, 800 - (nivel * 50));
-            }
-        }
-    }
-
-    void eliminarLineas(const vector<int>& lineas) {
-        for (int i = (int)lineas.size() - 1; i >= 0; --i) {
-            int linea = lineas[i];
-            for (int y = linea; y > 0; --y) {
-                for (int x = 0; x < ANCHO; ++x) {
-                    tablero[y][x] = tablero[y - 1][x];
-                    colores_tablero[y][x] = colores_tablero[y - 1][x];
+                
+                // Calcular nueva velocidad (más rápida = menor intervalo)
+                int decrement = (nivel - config.nivel_inicial) * config.aceleracion_por_nivel;
+                int nueva_vel = config.velocidad_inicial - decrement;
+                
+                // Velocidad mínima para evitar que sea imposible
+                if (nueva_vel < 50) {
+                    nueva_vel = 50;
                 }
-            }
-            for (int x = 0; x < ANCHO; ++x) {
-                tablero[0][x] = VACIO;
-                colores_tablero[0][x] = GRIS;
+                
+                velocidad_caida = nueva_vel;
             }
         }
     }
 
-    void calcularPuntos(int n) {
-        switch (n) {
-            case 1: puntos += 100 * nivel; break;
-            case 2: puntos += 300 * nivel; break;
-            case 3: puntos += 500 * nivel; break;
-            case 4: puntos += 800 * nivel; break;
+    /**
+     * Calcula y suma los puntos obtenidos al eliminar líneas.
+     * Los puntos se multiplican por el nivel actual para mayor dificultad = más puntos.
+     * @param num_lineas Número de líneas eliminadas simultáneamente (1-4)
+     */
+    void calcularPuntos(int num_lineas) {
+        switch (num_lineas) {
+            case 1:
+                puntos += config.puntos_linea_simple * nivel;
+                        break;
+            case 2:
+                puntos += config.puntos_linea_doble * nivel;
+                        break;
+            case 3:
+                puntos += config.puntos_linea_triple * nivel;
+                        break;
+            case 4:
+                puntos += config.puntos_linea_tetris * nivel;  // Tetris (4 líneas)
+                        break;
+            default:
+                // Si hay más de 4 líneas (no debería pasar), usar el máximo
+                puntos += config.puntos_linea_tetris * nivel;
+                        break;
         }
     }
 
-    void procesarEntrada() {
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) {
-                juego_activo = false;
-            } else if (e.type == SDL_KEYDOWN) {
-                if (game_over) {
-                    if (e.key.keysym.sym == SDLK_r) reiniciarJuego();
-                    continue;
-                }
-                switch (e.key.keysym.sym) {
-                    case SDLK_a:
-                    case SDLK_LEFT:
-                        if (esMovimientoValido(pieza_actual->x - 1, pieza_actual->y, pieza_actual->rotacion_actual))
-                            pieza_actual->x--;
-                        break;
-                    case SDLK_d:
-                    case SDLK_RIGHT:
-                        if (esMovimientoValido(pieza_actual->x + 1, pieza_actual->y, pieza_actual->rotacion_actual))
-                            pieza_actual->x++;
-                        break;
-                    case SDLK_s:
-                    case SDLK_DOWN:
-                        while (esMovimientoValido(pieza_actual->x, pieza_actual->y + 1, pieza_actual->rotacion_actual)) {
-                            pieza_actual->y++;
-                            puntos += 1;
-                        }
-                        fijarPieza();
-                        break;
-                    case SDLK_w:
-                    case SDLK_UP:
-                    case SDLK_SPACE: {
-                        int nr = (pieza_actual->rotacion_actual + 1) % (int)pieza_actual->rotaciones.size();
-                        if (esMovimientoValido(pieza_actual->x, pieza_actual->y, nr))
-                            pieza_actual->rotacion_actual = nr;
-                        break;
-                    }
-                    case SDLK_p:
-                        pausado = !pausado;
-                        break;
-                    case SDLK_ESCAPE:
-                        juego_activo = false;
-                        break;
-                }
-            }
-        }
-    }
-
+    /**
+     * Reinicia el juego a su estado inicial.
+     * Limpia el tablero, resetea estadísticas y genera nuevas piezas.
+     */
     void reiniciarJuego() {
+        // Limpiar el tablero
         for (int y = 0; y < ALTO; ++y) {
             for (int x = 0; x < ANCHO; ++x) {
                 tablero[y][x] = VACIO;
-                colores_tablero[y][x] = GRIS;
             }
         }
+        
+        // Resetear estadísticas
         puntos = 0;
-        nivel = 1;
+        nivel = config.nivel_inicial;
         lineas_completadas = 0;
-        velocidad_caida = 800;
+        velocidad_caida = config.velocidad_inicial;
+        
+        // Resetear estados del juego
         game_over = false;
         juego_activo = true;
         pausado = false;
 
+        // Liberar piezas actuales
         delete pieza_actual;
         delete siguiente_pieza;
         pieza_actual = NULL;
         siguiente_pieza = NULL;
 
+        // Reiniciar temporizadores
+        DWORD ahora = GetTickCount();
+        ultima_caida = ahora;
+        last_horiz_move = ahora;
+        last_soft_drop = ahora;
+        last_rotate = ahora;
+        
+        // Resetear estados de teclas
+        w_presionada_anterior = false;
+        space_presionada_anterior = false;
+        
+        // Generar nuevas piezas
         generarNuevaPieza();
         generarSiguientePieza();
-        ultima_caida = GetTickCount();
     }
-
+    /**
+     * Actualiza la física del juego: hace caer la pieza automáticamente.
+     * Se ejecuta en cada frame del juego.
+     */
     void actualizarFisica() {
-        if (pausado || game_over || !pieza_actual) return;
+        // No actualizar si el juego está pausado o terminado
+        if (pausado || game_over) {
+            return;
+        }
+
         DWORD ahora = GetTickCount();
-        DWORD dt    = ahora - ultima_caida;
-        if (dt >= (DWORD)velocidad_caida) {
+        
+        // Verificar si ha pasado el tiempo suficiente para que la pieza caiga
+        if (ahora - ultima_caida >= (DWORD)velocidad_caida) {
+            // Intentar mover la pieza hacia abajo
             if (esMovimientoValido(pieza_actual->x, pieza_actual->y + 1, pieza_actual->rotacion_actual)) {
                 pieza_actual->y++;
             } else {
+                // Si no puede bajar más, fijar la pieza en el tablero
                 fijarPieza();
             }
+            
             ultima_caida = ahora;
         }
     }
-
-    void renderizarTexto(const string& texto, int x, int y, SDL_Color color) {
-        if (!font) return;
-        SDL_Surface* surface = TTF_RenderText_Solid(font, texto.c_str(), color);
-        if (surface) {
-            SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-            if (texture) {
-                SDL_Rect dest = {x, y, surface->w, surface->h};
-                SDL_RenderCopy(renderer, texture, NULL, &dest);
-                SDL_DestroyTexture(texture);
+    /**
+     * Procesa todas las entradas del teclado del jugador.
+     * Maneja movimiento horizontal, rotación, caída rápida, pausa y reinicio.
+     */
+    void procesarTeclas() {
+        // Reiniciar juego si está en game over
+        if (game_over && (GetAsyncKeyState('R') & 0x8000)) {
+            reiniciarJuego();
+            Sleep(200);  // Pequeño delay para evitar múltiples reinicios
+            return;
+        }
+        
+        // No procesar movimiento si está pausado o en game over
+        if (pausado || game_over) {
+            if (GetAsyncKeyState('P') & 0x8000) { 
+                if (!game_over) {
+                    pausado = !pausado; 
+                    Sleep(200); 
+                }
             }
-            SDL_FreeSurface(surface);
+            if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) juego_activo = false;
+            return;
+        }
+        
+        DWORD ahora = GetTickCount();
+        
+        // ============================================================
+        // MOVIMIENTO HORIZONTAL (A = izquierda, D = derecha)
+        // ============================================================
+        // Rate limiting: solo permite un movimiento cada 120ms
+        if ((GetAsyncKeyState('A') & 0x8000) && (ahora - last_horiz_move >= 120)) {
+            if (esMovimientoValido(pieza_actual->x - 1, pieza_actual->y, pieza_actual->rotacion_actual)) {
+                pieza_actual->x--;
+            }
+            last_horiz_move = ahora;
+        }
+        
+        if ((GetAsyncKeyState('D') & 0x8000) && (ahora - last_horiz_move >= 120)) {
+            if (esMovimientoValido(pieza_actual->x + 1, pieza_actual->y, pieza_actual->rotacion_actual)) {
+                pieza_actual->x++;
+            }
+            last_horiz_move = ahora;
+        }
+        
+        // ============================================================
+        // CAÍDA RÁPIDA (S = bajar manualmente)
+        // ============================================================
+        // Rate limiting: solo permite un movimiento cada 80ms
+        if ((GetAsyncKeyState('S') & 0x8000) && (ahora - last_soft_drop >= 80)) {
+            if (esMovimientoValido(pieza_actual->x, pieza_actual->y + 1, pieza_actual->rotacion_actual)) {
+                pieza_actual->y++;
+            } else {
+                // Si no puede bajar más, fijar la pieza
+                fijarPieza();
+            }
+            last_soft_drop = ahora;
+        }
+        
+        // ============================================================
+        // ROTACIÓN (W o Espacio = rotar pieza)
+        // ============================================================
+        // Usar detección de flanco para evitar rotaciones continuas
+        bool w_actual = (GetAsyncKeyState('W') & 0x8000) != 0;
+        bool space_actual = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+        
+        // Rotar solo cuando la tecla cambia de no presionada a presionada (flanco de subida)
+        if ((w_actual && !w_presionada_anterior) || (space_actual && !space_presionada_anterior)) {
+            DWORD ahoraR = GetTickCount();
+            
+            // Delay mínimo de 150ms para evitar rotaciones demasiado rápidas
+            if (ahoraR - last_rotate >= 150) {
+                // Calcular siguiente rotación (cíclica)
+                int siguiente_rotacion = (pieza_actual->rotacion_actual + 1) % (int)pieza_actual->rotaciones.size();
+                
+                // Solo rotar si el movimiento es válido
+                if (esMovimientoValido(pieza_actual->x, pieza_actual->y, siguiente_rotacion)) {
+                    pieza_actual->rotacion_actual = siguiente_rotacion;
+                }
+                
+                last_rotate = ahoraR;
+            }
+        }
+        
+        // Actualizar estado anterior de las teclas para la próxima iteración
+        w_presionada_anterior = w_actual;
+        space_presionada_anterior = space_actual;
+        
+        // ============================================================
+        // CONTROLES DEL JUEGO
+        // ============================================================
+        // Reiniciar juego (también funciona durante el juego)
+        if (GetAsyncKeyState('R') & 0x8000) {
+            reiniciarJuego();
+            Sleep(200);  // Pequeño delay para evitar múltiples reinicios
+        }
+        
+        // Pausar/despausar juego
+        if (GetAsyncKeyState('P') & 0x8000) {
+            pausado = !pausado;
+            Sleep(200);  // Pequeño delay para evitar múltiples cambios
+        }
+        
+        // Salir del juego
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+            juego_activo = false;
         }
     }
-
-    void renderizar() {
-        SDL_SetRenderDrawColor(renderer, 20, 20, 30, 255);
-        SDL_RenderClear(renderer);
-
-        // Dibujar marco del tablero
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-        SDL_Rect marco = {OFFSET_X - 2, OFFSET_Y - 2, ANCHO * CELL_SIZE + 4, ALTO * CELL_SIZE + 4};
-        SDL_RenderDrawRect(renderer, &marco);
-
-        // Dibujar tablero y pieza actual
+    /**
+     * Renderiza todo el juego en el contexto de dispositivo especificado.
+     * Dibuja el tablero, la pieza actual, el HUD y la información de configuración.
+     * @param hdc Contexto de dispositivo donde dibujar
+     */
+    void renderizar(HDC hdc) {
+        // Limpiar el fondo con color oscuro
+        FillRectColor(hdc, 0, 0, 800, 700, ColorRGB(20, 20, 30));
+        
+        // Calcular dimensiones del tablero
+        int boardW = ANCHO * cell;
+        int boardH = ALTO * cell;
+        
+        // Dibujar borde del tablero (gris oscuro)
+        FillRectColor(hdc, offsetX - 2, offsetY - 2, boardW + 4, boardH + 4, ColorRGB(100, 100, 100));
+        
+        // Dibujar fondo del tablero (gris muy oscuro)
+        FillRectColor(hdc, offsetX, offsetY, boardW, boardH, ColorRGB(40, 40, 50));
+        
+        // Dibujar celdas del tablero
         for (int y = 0; y < ALTO; ++y) {
             for (int x = 0; x < ANCHO; ++x) {
-                SDL_Rect cell = {OFFSET_X + x * CELL_SIZE, OFFSET_Y + y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1};
+                COLORREF color_celda = ColorRGB(30, 30, 40);  // Color por defecto (vacío)
                 
-                bool es_pieza = false;
-                SDL_Color col = {30, 30, 40, 255};
-
-                // Verificar si es parte de la pieza actual
-                if (pieza_actual && !pausado && !game_over) {
-                    vector<vector<int> >& f = pieza_actual->rotaciones[pieza_actual->rotacion_actual];
-                    int py = y - pieza_actual->y;
-                    int px = x - pieza_actual->x;
-                    if (py >= 0 && py < (int)f.size() && px >= 0 && px < (int)f[0].size() && f[py][px] == 1) {
-                        col = obtenerColorSDL(static_cast<int>(pieza_actual->color));
-                        es_pieza = true;
-                    }
+                // Si la celda está ocupada, usar color verde
+                if (tablero[y][x] != VACIO) {
+                    color_celda = ColorRGB(100, 200, 100);
                 }
-
-                // Si no es pieza actual, verificar tablero fijo
-                if (!es_pieza && tablero[y][x] != VACIO) {
-                    col = obtenerColorSDL(static_cast<int>(colores_tablero[y][x]));
-                }
-
-                SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, col.a);
-                SDL_RenderFillRect(renderer, &cell);
+                
+                // Dibujar celda con pequeño margen para efecto visual
+                FillRectColor(hdc, 
+                    offsetX + x * cell + 1, 
+                    offsetY + y * cell + 1, 
+                    cell - 2, 
+                    cell - 2, 
+                    color_celda);
             }
         }
-
-        // Panel de información
-        SDL_Color blanco = {255, 255, 255, 255};
-        SDL_Color amarillo = {255, 255, 0, 255};
         
-        int infoX = OFFSET_X + ANCHO * CELL_SIZE + 30;
-        renderizarTexto("=== TETRIS ===", infoX, 50, blanco);
-        {
-            std::ostringstream oss; oss << "Puntos: " << puntos;
-            renderizarTexto(oss.str(), infoX, 90, amarillo);
-        }
-        {
-            std::ostringstream oss; oss << "Nivel: " << nivel;
-            renderizarTexto(oss.str(), infoX, 120, amarillo);
-        }
-        {
-            std::ostringstream oss; oss << "Lineas: " << lineas_completadas;
-            renderizarTexto(oss.str(), infoX, 150, amarillo);
-        }
-        
-        renderizarTexto("Controles:", infoX, 200, blanco);
-        renderizarTexto("A/D o Flechas: Mover", infoX, 230, {150, 150, 150, 255});
-        renderizarTexto("W/Space: Rotar", infoX, 260, {150, 150, 150, 255});
-        renderizarTexto("S: Caida rapida", infoX, 290, {150, 150, 150, 255});
-        renderizarTexto("P: Pausa", infoX, 320, {150, 150, 150, 255});
-        renderizarTexto("ESC: Salir", infoX, 350, {150, 150, 150, 255});
-
-        // Siguiente pieza
-        if (siguiente_pieza) {
-            renderizarTexto("Siguiente:", infoX, 400, blanco);
-            vector<vector<int> >& f = siguiente_pieza->rotaciones[0];
-            SDL_Color col = obtenerColorSDL(static_cast<int>(siguiente_pieza->color));
-            for (int py = 0; py < (int)f.size(); ++py) {
-                for (int px = 0; px < (int)f[0].size(); ++px) {
-                    if (f[py][px] == 1) {
-                        SDL_Rect cell = {infoX + px * 20, 430 + py * 20, 18, 18};
-                        SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, col.a);
-                        SDL_RenderFillRect(renderer, &cell);
+        // Dibujar pieza actual que está cayendo
+        if (pieza_actual) {
+            vector<vector<int> >& forma = pieza_actual->rotaciones[pieza_actual->rotacion_actual];
+            
+            for (int py = 0; py < (int)forma.size(); ++py) {
+                for (int px = 0; px < (int)forma[0].size(); ++px) {
+                    if (forma[py][px] == 1) {
+                        int bx = pieza_actual->x + px;
+                        int by = pieza_actual->y + py;
+                        
+                        // Solo dibujar si la pieza está dentro del tablero visible
+                        if (by >= 0) {
+                            FillRectColor(hdc, 
+                                offsetX + bx * cell + 1, 
+                                offsetY + by * cell + 1, 
+                                cell - 2, 
+                                cell - 2, 
+                                ColorRGB(200, 100, 50));  // Color naranja para la pieza
+                        }
                     }
                 }
             }
         }
-
+        
+        // Configurar texto
+        SetTextColor(hdc, RGB(255, 255, 255));
+        SetBkMode(hdc, TRANSPARENT);
+        
+        // Panel de información a la derecha
+        int panelX = offsetX + boardW + 20;
+        int panelY = offsetY;
+        int lineHeight = 20;
+        int currentY = panelY;
+        
+        // Título
+        TextOutA(hdc, panelX, currentY, "TETRIS", 6);
+        currentY += lineHeight + 10;
+        
+        // Puntos totales
+        char buf[128];
+        sprintf(buf, "Puntos: %d", puntos);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        // Nivel
+        sprintf(buf, "Nivel: %d", nivel);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        // Líneas completadas
+        sprintf(buf, "Lineas: %d", lineas_completadas);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight + 15;
+        
+        // Tabla de puntajes por tipo de línea
+        TextOutA(hdc, panelX, currentY, "Puntos por linea:", 17);
+        currentY += lineHeight;
+        
+        sprintf(buf, "1 linea: %d x%d", config.puntos_linea_simple, nivel);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        sprintf(buf, "2 lineas: %d x%d", config.puntos_linea_doble, nivel);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        sprintf(buf, "3 lineas: %d x%d", config.puntos_linea_triple, nivel);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight;
+        
+        sprintf(buf, "4 lineas: %d x%d", config.puntos_linea_tetris, nivel);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight + 15;
+        
+        // Controles
+        TextOutA(hdc, panelX, currentY, "Controles:", 10);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "A/D - Mover", 11);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "S - Bajar rapido", 16);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "W/ESP - Rotar", 14);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "P - Pausa", 9);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "R - Reiniciar", 14);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "ESC - Salir", 11);
+        currentY += lineHeight;
+        
+        // Mensaje de game over
         if (game_over) {
-            SDL_Color rojo = {255, 50, 50, 255};
-            renderizarTexto("!GAME OVER!", OFFSET_X + 80, OFFSET_Y + ALTO * CELL_SIZE / 2 - 30, rojo);
-            renderizarTexto("Presiona R para reiniciar", OFFSET_X + 40, OFFSET_Y + ALTO * CELL_SIZE / 2, blanco);
+            currentY += 10;
+            SetTextColor(hdc, RGB(255, 100, 100));
+            TextOutA(hdc, panelX, currentY, "GAME OVER!", 10);
+            currentY += lineHeight;
+            SetTextColor(hdc, RGB(255, 255, 255));
+            TextOutA(hdc, panelX, currentY, "Presiona R para", 15);
+            currentY += lineHeight;
+            TextOutA(hdc, panelX, currentY, "reiniciar", 9);
         }
-
-        if (pausado) {
-            SDL_Color magenta = {200, 50, 200, 255};
-            renderizarTexto("*** PAUSADO ***", OFFSET_X + 70, OFFSET_Y + ALTO * CELL_SIZE / 2, magenta);
+        
+        // Mensaje de pausa
+        if (pausado && !game_over) {
+            currentY += 10;
+            SetTextColor(hdc, RGB(255, 255, 100));
+            TextOutA(hdc, panelX, currentY, "PAUSA", 5);
+            currentY += lineHeight;
+            SetTextColor(hdc, RGB(255, 255, 255));
+            TextOutA(hdc, panelX, currentY, "Presiona P para", 15);
+            currentY += lineHeight;
+            TextOutA(hdc, panelX, currentY, "continuar", 9);
         }
-
-        SDL_RenderPresent(renderer);
+        
+        // Restaurar color de texto
+        SetTextColor(hdc, RGB(255, 255, 255));
     }
 
-    void ejecutar() {
-        while (juego_activo) {
-            procesarEntrada();
+    /**
+     * Ejecuta el bucle principal del juego.
+     * Maneja mensajes de Windows, procesa entrada, actualiza física y renderiza.
+     * Usa doble buffer para evitar parpadeo.
+     */
+    void run() {
+        // Crear contexto de dispositivo para la ventana
+        HDC hdcWindow = GetDC(g_hWnd);
+        
+        // Crear contexto de memoria para doble buffer
+        HDC memDC = CreateCompatibleDC(hdcWindow);
+        HBITMAP hbm = CreateCompatibleBitmap(hdcWindow, 800, 700);
+        HBITMAP oldbm = (HBITMAP)SelectObject(memDC, hbm);
+        
+        // Bucle principal del juego
+        while (juego_activo && g_running) {
+            // Procesar mensajes de Windows
+            MSG msg;
+            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+                if (msg.message == WM_QUIT) {
+                    juego_activo = false;
+                    g_running = false;
+                }
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            
+            // Procesar entrada (incluye reinicio si hay game over)
+            procesarTeclas();
+            
+            // Actualizar física solo si no está pausado ni en game over
             if (!pausado && !game_over) {
                 actualizarFisica();
             }
-            renderizar();
-            SDL_Delay(16); // ~60 FPS
+            
+            // Renderizar siempre (muestra game over si es necesario)
+            renderizar(memDC);
+            
+            // Copiar buffer de memoria a la ventana (blit)
+            BitBlt(hdcWindow, 0, 0, 800, 700, memDC, 0, 0, SRCCOPY);
+            
+            // Pequeña pausa para no saturar la CPU (~60 FPS)
+            Sleep(16);
         }
+        
+        // Limpiar recursos de GDI
+        SelectObject(memDC, oldbm);
+        DeleteObject(hbm);
+        DeleteDC(memDC);
+        ReleaseDC(g_hWnd, hdcWindow);
     }
 };
 
-// ================================================================
-// SnakeEngineSDL - Versión gráfica de Snake
-// ================================================================
-class SnakeEngineSDL {
-private:
-    static const int CELL_SIZE = 20;
-    static const int OFFSET_X = 50;
-    static const int OFFSET_Y = 80;
-
-    SDL_Window* window;
-    SDL_Renderer* renderer;
-    TTF_Font* font;
-
+// --- Minimal Snake GDI ---
+class SnakeEngineGDI {
+public:
+    int cell; int offsetX, offsetY; int ancho_tablero, alto_tablero; int velocidad_ms;
+    vector<Posicion> cuerpo; Posicion fruta; Posicion direccion;
+    string fruta_tipo_actual;  // Tipo de fruta actual para GDI
+    bool juego_activo; bool pausado; bool game_over; int puntos;
+    DWORD ultima;
     SnakeAST config;
-    vector<Posicion> cuerpo_snake;
-    Posicion direccion_actual;
-    Posicion fruta_posicion;
-    
-    bool juego_activo;
-    bool pausado;
-    bool game_over;
-    int puntos;
-    int nivel;
-    
-    // using rand() for C++03 compatibility
-    int ancho_tablero;
-    int alto_tablero;
-    int velocidad_ms;
-
-    DWORD ultima_actualizacion;
-
-public:
-    SnakeEngineSDL()
-        : juego_activo(true)
-        , pausado(false)
-        , game_over(false)
-        , puntos(0)
-        , nivel(1)
-        , window(NULL)
-        , renderer(NULL)
-        , font(NULL) {
+    SnakeEngineGDI(): cell(18), offsetX(20), offsetY(60), ancho_tablero(25), alto_tablero(20), velocidad_ms(150) {
+        srand((unsigned)time(NULL)); juego_activo=true; pausado=false; game_over=false; puntos=0; ultima=GetTickCount();
+        cargarConfiguracion(); inicializarJuego();
+    }
+    void cargarConfiguracion() { if (!config.cargarDesdeAST("build/arbol.ast")) { ancho_tablero=25; alto_tablero=20; velocidad_ms=150; } else { ancho_tablero = config.integers.count("ancho_tablero")?config.integers["ancho_tablero"]:25; alto_tablero = config.integers.count("alto_tablero")?config.integers["alto_tablero"]:20; velocidad_ms = config.integers.count("velocidad_inicial")?config.integers["velocidad_inicial"]:150; } }
+    void inicializarJuego() { 
+        cuerpo.clear(); 
+        int cx=ancho_tablero/2, cy=alto_tablero/2; 
+        int len = config.integers.count("longitud_inicial")?config.integers["longitud_inicial"]:3; 
+        for (int i=0;i<len;++i) cuerpo.push_back(Posicion(cx-i,cy)); 
+        direccion = Posicion(1,0); 
+        fruta_tipo_actual = "manzana";  // Inicializar tipo de fruta
+        generarFruta(); 
+        puntos=0; 
+        game_over=false; 
+    }
+    void generarFruta() { 
+        do { 
+            int rx = (rand()%(ancho_tablero-2))+1; 
+            int ry = (rand()%(alto_tablero-2))+1; 
+            fruta = Posicion(rx,ry); 
+        } while (ocupada(fruta));
         
-        cargarConfiguracionAST();
-
-        if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-            cerr << "Error SDL: " << SDL_GetError() << endl;
-            juego_activo = false;
-            return;
+        // Seleccionar tipo de fruta aleatorio
+        vector<string> frutas_disponibles;
+        if (config.arrays.count("frutas_disponibles")) {
+            frutas_disponibles = config.arrays["frutas_disponibles"];
+        } else {
+            frutas_disponibles.push_back("manzana");
+            frutas_disponibles.push_back("cereza");
+            frutas_disponibles.push_back("banana");
         }
         
-        if (TTF_Init() < 0) {
-            cerr << "Error SDL_ttf: " << TTF_GetError() << endl;
+        if (!frutas_disponibles.empty()) {
+            fruta_tipo_actual = frutas_disponibles[rand() % frutas_disponibles.size()];
+        } else {
+            fruta_tipo_actual = "manzana";
         }
-
-        int windowW = ancho_tablero * CELL_SIZE + 100 + 200;
-        int windowH = alto_tablero * CELL_SIZE + 160;
-
-        window = SDL_CreateWindow("Snake - Motor de Ladrillos",
-                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  windowW, windowH, SDL_WINDOW_SHOWN);
-        if (!window) {
-            cerr << "Error creando ventana: " << SDL_GetError() << endl;
-            juego_activo = false;
+    }
+    bool ocupada(const Posicion& p) { for (size_t i=0;i<cuerpo.size();++i) if (cuerpo[i]==p) return true; return false; }
+    void procesarTeclas() {
+        // Reiniciar juego si está en game over
+        if (game_over && (GetAsyncKeyState('R') & 0x8000)) {
+            inicializarJuego();
+            Sleep(200);  // Pequeño delay para evitar múltiples reinicios
             return;
         }
-
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-        if (!renderer) {
-            cerr << "Error creando renderer: " << SDL_GetError() << endl;
-            juego_activo = false;
-            return;
-        }
-
-        font = TTF_OpenFont("C:\\Windows\\Fonts\\consola.ttf", 16);
-        if (!font) font = TTF_OpenFont("C:\\Windows\\Fonts\\arial.ttf", 16);
-
-        srand((unsigned)time(NULL));
-        inicializarJuego();
-        ultima_actualizacion = GetTickCount();
-    }
-
-    ~SnakeEngineSDL() {
-        if (font) TTF_CloseFont(font);
-        if (renderer) SDL_DestroyRenderer(renderer);
-        if (window) SDL_DestroyWindow(window);
-        TTF_Quit();
-        SDL_Quit();
-    }
-
-private:
-    void cargarConfiguracionAST() {
-        if (!config.cargarDesdeAST("build/arbol.ast")) {
-            ancho_tablero = 25;
-            alto_tablero = 20;
-            velocidad_ms = 150;
-            return;
-        }
-        ancho_tablero = config.integers.count("ancho_tablero") ? config.integers["ancho_tablero"] : 25;
-        alto_tablero = config.integers.count("alto_tablero") ? config.integers["alto_tablero"] : 20;
-        velocidad_ms = config.integers.count("velocidad_inicial") ? config.integers["velocidad_inicial"] : 150;
-    }
-
-    void inicializarJuego() {
-        cuerpo_snake.clear();
-        int cx = ancho_tablero / 2;
-        int cy = alto_tablero / 2;
-        int longitud = config.integers.count("longitud_inicial") ? config.integers["longitud_inicial"] : 3;
-        for (int i = 0; i < longitud; ++i) {
-            cuerpo_snake.push_back(Posicion(cx - i, cy));
-        }
-        direccion_actual = Posicion(1, 0);
-        generarNuevaFruta();
-        puntos = 0;
-        game_over = false;
-    }
-
-    void generarNuevaFruta() {
-        int minx = 1;
-        int maxx = ancho_tablero - 2;
-        int miny = 1;
-        int maxy = alto_tablero - 2;
-        do {
-            int rx = (rand() % (maxx - minx + 1)) + minx;
-            int ry = (rand() % (maxy - miny + 1)) + miny;
-            fruta_posicion = Posicion(rx, ry);
-        } while (esPosicionOcupadaPorSnake(fruta_posicion));
-    }
-
-    bool esPosicionOcupadaPorSnake(const Posicion& p) {
-        for (size_t i = 0; i < cuerpo_snake.size(); ++i) {
-            if (cuerpo_snake[i] == p) return true;
-        }
-        return false;
-    }
-
-    bool hayColisionConCuerpo(const Posicion& p) {
-        for (size_t i = 1; i < cuerpo_snake.size(); ++i) {
-            if (cuerpo_snake[i] == p) return true;
-        }
-        return false;
-    }
-
-    bool estaFueraDelTablero(const Posicion& p) {
-        return p.x <= 0 || p.x >= ancho_tablero - 1 || p.y <= 0 || p.y >= alto_tablero - 1;
-    }
-
-    void procesarEntrada() {
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) {
-                juego_activo = false;
-            } else if (e.type == SDL_KEYDOWN) {
-                if (game_over) {
-                    if (e.key.keysym.sym == SDLK_r) {
-                        inicializarJuego();
-                        ultima_actualizacion = GetTickCount();
-                    } else if (e.key.keysym.sym == SDLK_ESCAPE) {
-                        juego_activo = false;
-                    }
-                    continue;
-                }
-                switch (e.key.keysym.sym) {
-                    case SDLK_w: case SDLK_UP:
-                        if (direccion_actual.y == 0) direccion_actual = Posicion(0, -1);
-                        break;
-                    case SDLK_s: case SDLK_DOWN:
-                        if (direccion_actual.y == 0) direccion_actual = Posicion(0, 1);
-                        break;
-                    case SDLK_a: case SDLK_LEFT:
-                        if (direccion_actual.x == 0) direccion_actual = Posicion(-1, 0);
-                        break;
-                    case SDLK_d: case SDLK_RIGHT:
-                        if (direccion_actual.x == 0) direccion_actual = Posicion(1, 0);
-                        break;
-                    case SDLK_p:
-                        pausado = !pausado;
-                        break;
-                    case SDLK_ESCAPE:
-                        juego_activo = false;
-                        break;
+        
+        // No procesar movimiento si está pausado o en game over
+        if (pausado || game_over) {
+            if (GetAsyncKeyState('P') & 0x8000) { 
+                if (!game_over) {
+                    pausado = !pausado; 
+                    Sleep(200); 
                 }
             }
-        }
-    }
-
-    void actualizarFisica() {
-        if (pausado || game_over) return;
-
-        DWORD ahora = GetTickCount();
-        DWORD dt = ahora - ultima_actualizacion;
-
-        if (dt < (DWORD)velocidad_ms) return;
-        ultima_actualizacion = ahora;
-
-        Posicion nueva(cuerpo_snake[0].x + direccion_actual.x,
-                       cuerpo_snake[0].y + direccion_actual.y);
-
-        bool fin_borde = config.booleans.count("terminar_al_chocar_borde") ? config.booleans["terminar_al_chocar_borde"] : true;
-        bool fin_cuerpo = config.booleans.count("terminar_al_chocar_cuerpo") ? config.booleans["terminar_al_chocar_cuerpo"] : true;
-
-        if (fin_borde && estaFueraDelTablero(nueva)) {
-            game_over = true;
+            if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) juego_activo=false;
             return;
         }
-        if (fin_cuerpo && hayColisionConCuerpo(nueva)) {
-            game_over = true;
-            return;
-        }
-
-        cuerpo_snake.insert(cuerpo_snake.begin(), nueva);
-        if (nueva == fruta_posicion) {
-            int pf = config.integers.count("puntos_por_fruta") ? config.integers["puntos_por_fruta"] : 100;
-            puntos += pf;
-            generarNuevaFruta();
-        } else {
-            cuerpo_snake.pop_back();
-        }
-    }
-
-    void renderizarTexto(const string& texto, int x, int y, SDL_Color color) {
-        if (!font) return;
-        SDL_Surface* surface = TTF_RenderText_Solid(font, texto.c_str(), color);
-        if (surface) {
-            SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-            if (texture) {
-                SDL_Rect dest = {x, y, surface->w, surface->h};
-                SDL_RenderCopy(renderer, texture, NULL, &dest);
-                SDL_DestroyTexture(texture);
-            }
-            SDL_FreeSurface(surface);
-        }
-    }
-
-    void renderizar() {
-        SDL_SetRenderDrawColor(renderer, 20, 20, 30, 255);
-        SDL_RenderClear(renderer);
-
-        // Título e información
-        SDL_Color blanco = {255, 255, 255, 255};
-        SDL_Color amarillo = {255, 255, 0, 255};
         
-        string titulo = config.strings.count("nombre_juego") ? config.strings["nombre_juego"] : "Snake Clasico";
-        renderizarTexto("=== " + titulo + " ===", OFFSET_X, 15, blanco);
-        {
-            std::ostringstream _oss; _oss << "Puntos: " << puntos << "  |  Longitud: " << cuerpo_snake.size();
-            renderizarTexto(_oss.str(), OFFSET_X, 45, amarillo);
-        }
-
-        // Dibujar marco del tablero
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-        SDL_Rect marco = {OFFSET_X - 2, OFFSET_Y - 2, ancho_tablero * CELL_SIZE + 4, alto_tablero * CELL_SIZE + 4};
-        SDL_RenderDrawRect(renderer, &marco);
-
-        // Dibujar fondo del tablero
-        SDL_SetRenderDrawColor(renderer, 30, 30, 40, 255);
-        SDL_Rect fondo = {OFFSET_X, OFFSET_Y, ancho_tablero * CELL_SIZE, alto_tablero * CELL_SIZE};
-        SDL_RenderFillRect(renderer, &fondo);
-
-        // Dibujar bordes
-        SDL_SetRenderDrawColor(renderer, 80, 80, 100, 255);
-        for (int x = 0; x < ancho_tablero; ++x) {
-            SDL_Rect top = {OFFSET_X + x * CELL_SIZE, OFFSET_Y, CELL_SIZE - 1, CELL_SIZE - 1};
-            SDL_Rect bottom = {OFFSET_X + x * CELL_SIZE, OFFSET_Y + (alto_tablero - 1) * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1};
-            SDL_RenderFillRect(renderer, &top);
-            SDL_RenderFillRect(renderer, &bottom);
-        }
-        for (int y = 0; y < alto_tablero; ++y) {
-            SDL_Rect left = {OFFSET_X, OFFSET_Y + y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1};
-            SDL_Rect right = {OFFSET_X + (ancho_tablero - 1) * CELL_SIZE, OFFSET_Y + y * CELL_SIZE, CELL_SIZE - 1, CELL_SIZE - 1};
-            SDL_RenderFillRect(renderer, &left);
-            SDL_RenderFillRect(renderer, &right);
-        }
-
-        // Dibujar fruta
-        string colorFruta = config.strings.count("color_fruta") ? config.strings["color_fruta"] : "rojo";
-        SDL_Color colFruta = obtenerColorSnakeSDL(colorFruta);
-        SDL_SetRenderDrawColor(renderer, colFruta.r, colFruta.g, colFruta.b, colFruta.a);
-        SDL_Rect frutaRect = {OFFSET_X + fruta_posicion.x * CELL_SIZE + 2, OFFSET_Y + fruta_posicion.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4};
-        SDL_RenderFillRect(renderer, &frutaRect);
-
-        // Dibujar snake
-        vector<string> colores;
-        if (config.arrays.count("colores_snake")) {
-            colores = config.arrays["colores_snake"];
-        } else {
-            colores.push_back("verde_claro"); colores.push_back("verde_oscuro");
-        }
-        for (size_t i = 0; i < cuerpo_snake.size(); ++i) {
-            SDL_Color col;
-            if (i == 0 && !colores.empty()) {
-                col = obtenerColorSnakeSDL(colores[0]);
-            } else if (colores.size() > 1) {
-                col = obtenerColorSnakeSDL(colores[1]);
+        // Controles de movimiento
+        if (GetAsyncKeyState('W') & 0x8000) if (direccion.y==0) direccion = Posicion(0,-1);
+        if (GetAsyncKeyState('S') & 0x8000) if (directionSafe(0,1)) direccion = Posicion(0,1);
+        if (GetAsyncKeyState('A') & 0x8000) if (direccion.x==0) direccion = Posicion(-1,0);
+        if (GetAsyncKeyState('D') & 0x8000) if (direccion.x==0) direccion = Posicion(1,0);
+        
+        // Pausa y salir
+        if (GetAsyncKeyState('P') & 0x8000) { pausado = !pausado; Sleep(200); }
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) juego_activo=false;
+    }
+    bool directionSafe(int dx,int dy) { if (dx == -direccion.x && dy == -direccion.y) return false; return true; }
+    void actualizarFisica() { 
+        if (pausado||game_over) return; 
+        DWORD ahora=GetTickCount(); 
+        if (ahora - ultima < (DWORD)velocidad_ms) return; 
+        ultima = ahora; 
+        Posicion nueva(cuerpo[0].x+direccion.x, cuerpo[0].y+direccion.y); 
+        if (nueva.x<=0||nueva.x>=ancho_tablero-1||nueva.y<=0||nueva.y>=alto_tablero-1) { 
+            game_over=true; 
+            return; 
+        } 
+        for (size_t i=1;i<cuerpo.size();++i) if (cuerpo[i]==nueva) { 
+            game_over=true; 
+            return; 
+        } 
+        cuerpo.insert(cuerpo.begin(), nueva); 
+        if (nueva==fruta) { 
+            // Calcular puntos según tipo de fruta
+            int pf = config.integers.count("puntos_por_fruta")?config.integers["puntos_por_fruta"]:10;
+            string clave_puntos = "puntos_" + fruta_tipo_actual;
+            if (config.integers.count(clave_puntos)) {
+                pf = config.integers[clave_puntos];
             } else {
-                col = {0, 200, 0, 255};
+                // Valores por defecto
+                if (fruta_tipo_actual == "manzana") pf = 10;
+                else if (fruta_tipo_actual == "cereza") pf = 20;
+                else if (fruta_tipo_actual == "banana") pf = 15;
+                else if (fruta_tipo_actual == "uva") pf = 25;
+                else if (fruta_tipo_actual == "naranja") pf = 30;
             }
-            SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, col.a);
-            SDL_Rect snakeRect = {OFFSET_X + cuerpo_snake[i].x * CELL_SIZE + 1, OFFSET_Y + cuerpo_snake[i].y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2};
-            SDL_RenderFillRect(renderer, &snakeRect);
+            puntos += pf; 
+            generarFruta(); 
+        } else {
+            cuerpo.pop_back();
         }
-
-        // Panel de controles
-        int infoX = OFFSET_X + ancho_tablero * CELL_SIZE + 20;
-        renderizarTexto("Controles:", infoX, OFFSET_Y, blanco);
-        renderizarTexto("WASD/Flechas: Mover", infoX, OFFSET_Y + 30, {150, 150, 150, 255});
-        renderizarTexto("P: Pausa", infoX, OFFSET_Y + 60, {150, 150, 150, 255});
-        renderizarTexto("ESC: Salir", infoX, OFFSET_Y + 90, {150, 150, 150, 255});
-
-        if (game_over) {
-            SDL_Color rojo = {255, 50, 50, 255};
-            string msg = config.strings.count("mensaje_game_over") ? config.strings["mensaje_game_over"] : "GAME OVER";
-            size_t p = msg.find("{puntos}");
-            if (p != string::npos) {
-                std::ostringstream _oss; _oss << puntos;
-                msg.replace(p, 8, _oss.str());
-            }
-            renderizarTexto(msg, OFFSET_X + 50, OFFSET_Y + alto_tablero * CELL_SIZE / 2 - 20, rojo);
-            renderizarTexto("Presiona R para reiniciar", OFFSET_X + 30, OFFSET_Y + alto_tablero * CELL_SIZE / 2 + 10, blanco);
-        }
-
-        if (pausado) {
-            SDL_Color magenta = {200, 50, 200, 255};
-            renderizarTexto("*** PAUSADO ***", OFFSET_X + 60, OFFSET_Y + alto_tablero * CELL_SIZE / 2, magenta);
-        }
-
-        SDL_RenderPresent(renderer);
     }
-
-public:
-    void ejecutar() {
-        while (juego_activo) {
-            procesarEntrada();
-            actualizarFisica();
-            renderizar();
-            SDL_Delay(16);
+    /**
+     * Obtiene los puntos de un tipo de fruta desde la configuración.
+     */
+    int obtenerPuntosFruta(const string& tipo) {
+        string clave = "puntos_" + tipo;
+        if (config.integers.count(clave)) {
+            return config.integers[clave];
         }
+        // Valores por defecto
+        if (tipo == "manzana") return 10;
+        else if (tipo == "cereza") return 20;
+        else if (tipo == "banana") return 15;
+        else if (tipo == "uva") return 25;
+        else if (tipo == "naranja") return 30;
+        return 10;
+    }
+    
+    void renderizar(HDC hdc) {
+        RECT r; 
+        GetClientRect(g_hWnd, &r); 
+        FillRectColor(hdc, 0, 0, r.right - r.left, r.bottom - r.top, ColorRGB(20, 20, 30));
+        
+        // Calcular dimensiones del tablero
+        int bw = ancho_tablero * cell;
+        int bh = alto_tablero * cell;
+        
+        // Dibujar borde del tablero
+        FillRectColor(hdc, offsetX - 2, offsetY - 2, bw + 4, bh + 4, ColorRGB(100, 100, 100));
+        FillRectColor(hdc, offsetX, offsetY, bw, bh, ColorRGB(30, 30, 40));
+        
+        // Dibujar fruta con color según tipo
+        COLORREF color_fruta_rgb = ColorRGB(255, 80, 80);  // Rojo por defecto
+        if (fruta_tipo_actual == "manzana" || fruta_tipo_actual == "cereza") {
+            color_fruta_rgb = ColorRGB(255, 80, 80);  // Rojo
+        } else if (fruta_tipo_actual == "banana") {
+            color_fruta_rgb = ColorRGB(255, 255, 0);  // Amarillo
+        } else if (fruta_tipo_actual == "uva") {
+            color_fruta_rgb = ColorRGB(255, 0, 255);  // Magenta
+        } else if (fruta_tipo_actual == "naranja") {
+            color_fruta_rgb = ColorRGB(255, 165, 0);  // Naranja
+        }
+        FillRectColor(hdc, offsetX + fruta.x * cell + 2, offsetY + fruta.y * cell + 2, cell - 4, cell - 4, color_fruta_rgb);
+        
+        // Dibujar snake
+        for (size_t i = 0; i < cuerpo.size(); ++i) {
+            COLORREF col = (i == 0) ? ColorRGB(200, 255, 200) : ColorRGB(0, 150, 0);
+            FillRectColor(hdc, offsetX + cuerpo[i].x * cell + 1, offsetY + cuerpo[i].y * cell + 1, cell - 2, cell - 2, col);
+        }
+        
+        // Configurar texto
+        SetTextColor(hdc, RGB(255, 255, 255));
+        SetBkMode(hdc, TRANSPARENT);
+        
+        // Panel de información a la derecha
+        int panelX = offsetX + bw + 20;
+        int panelY = offsetY;
+        int lineHeight = 20;
+        int currentY = panelY;
+        
+        // Título
+        TextOutA(hdc, panelX, currentY, "SNAKE", 5);
+        currentY += lineHeight + 10;
+        
+        // Puntos totales
+        char buf[128];
+        sprintf(buf, "Puntos: %d", puntos);
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight + 10;
+        
+        // Longitud
+        sprintf(buf, "Longitud: %d", (int)cuerpo.size());
+        TextOutA(hdc, panelX, currentY, buf, (int)strlen(buf));
+        currentY += lineHeight + 15;
+        
+        // Tabla de puntajes de frutas
+        TextOutA(hdc, panelX, currentY, "Puntos por fruta:", 17);
+        currentY += lineHeight;
+        
+        // Dibujar cada tipo de fruta con su color y puntos
+        vector<string> frutas;
+        frutas.push_back("manzana");
+        frutas.push_back("cereza");
+        frutas.push_back("banana");
+        frutas.push_back("uva");
+        frutas.push_back("naranja");
+        for (size_t i = 0; i < frutas.size(); ++i) {
+            string tipo = frutas[i];
+            int pts = obtenerPuntosFruta(tipo);
+            
+            // Dibujar cuadro de color de la fruta
+            COLORREF color_fr = ColorRGB(255, 80, 80);
+            if (tipo == "banana") color_fr = ColorRGB(255, 255, 0);
+            else if (tipo == "uva") color_fr = ColorRGB(255, 0, 255);
+            else if (tipo == "naranja") color_fr = ColorRGB(255, 165, 0);
+            
+            FillRectColor(hdc, panelX, currentY, 12, 12, color_fr);
+            
+            // Texto con nombre y puntos
+            sprintf(buf, " %s: %d pts", tipo.c_str(), pts);
+            TextOutA(hdc, panelX + 15, currentY, buf, (int)strlen(buf));
+            currentY += lineHeight;
+        }
+        
+        currentY += 10;
+        
+        // Controles
+        TextOutA(hdc, panelX, currentY, "Controles:", 10);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "W/A/S/D - Mover", 16);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "P - Pausa", 9);
+        currentY += lineHeight;
+        TextOutA(hdc, panelX, currentY, "ESC - Salir", 11);
+        currentY += lineHeight;
+        
+        // Mensaje de game over
+        if (game_over) {
+            currentY += 10;
+            SetTextColor(hdc, RGB(255, 100, 100));
+            TextOutA(hdc, panelX, currentY, "GAME OVER!", 10);
+            currentY += lineHeight;
+            SetTextColor(hdc, RGB(255, 255, 255));
+            TextOutA(hdc, panelX, currentY, "Presiona R para", 15);
+            currentY += lineHeight;
+            TextOutA(hdc, panelX, currentY, "reiniciar", 9);
+        }
+        
+        // Mensaje de pausa
+        if (pausado && !game_over) {
+            currentY += 10;
+            SetTextColor(hdc, RGB(255, 255, 100));
+            TextOutA(hdc, panelX, currentY, "PAUSA", 5);
+            currentY += lineHeight;
+            SetTextColor(hdc, RGB(255, 255, 255));
+            TextOutA(hdc, panelX, currentY, "Presiona P para", 15);
+            currentY += lineHeight;
+            TextOutA(hdc, panelX, currentY, "continuar", 9);
+        }
+        
+        // Restaurar color de texto
+        SetTextColor(hdc, RGB(255, 255, 255));
+    }
+    /**
+     * Ejecuta el bucle principal del juego.
+     * Continúa ejecutándose incluso cuando hay game over para permitir reiniciar.
+     */
+    void run() {
+        HDC hdcWindow = GetDC(g_hWnd);
+        HDC memDC = CreateCompatibleDC(hdcWindow);
+        HBITMAP hbm = CreateCompatibleBitmap(hdcWindow, 900, 700);
+        HBITMAP oldbm = (HBITMAP)SelectObject(memDC, hbm);
+        
+        while (juego_activo && g_running) {
+            // Procesar mensajes de Windows
+            MSG msg;
+            while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+                if (msg.message == WM_QUIT) {
+                    juego_activo = false;
+                    g_running = false;
+                }
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+            
+            // Procesar entrada (incluye reinicio si hay game over)
+            procesarTeclas();
+            
+            // Actualizar física solo si no está pausado ni en game over
+            if (!pausado && !game_over) {
+                actualizarFisica();
+            }
+            
+            // Renderizar siempre (muestra game over si es necesario)
+            renderizar(memDC);
+            
+            // Copiar buffer a la ventana
+            BitBlt(hdcWindow, 0, 0, 900, 700, memDC, 0, 0, SRCCOPY);
+            
+            // Pequeña pausa para no saturar la CPU (~60 FPS)
+            Sleep(16);
+        }
+        
+        // Limpiar recursos de GDI
+        SelectObject(memDC, oldbm);
+        DeleteObject(hbm);
+        DeleteDC(memDC);
+        ReleaseDC(g_hWnd, hdcWindow);
     }
 };
 
-#endif // USE_SDL
+#endif // USE_GDI
 
 // ================================================================
 // Función para seleccionar modo de renderizado
 // ================================================================
 ModoRenderizado seleccionarModo() {
-#ifdef USE_SDL
+#ifdef USE_GDI
     cout << "\n============================================\n";
-    cout << "        SELECCION DE MODO DE JUEGO\n";
+    cout << "        SELECCION DE MODO DE RENDERIZADO\n";
     cout << "============================================\n";
     cout << "1) Modo Consola (texto en terminal)\n";
-    cout << "2) Modo Ventana Grafica (SDL2)\n";
-    cout << "Elige una opcion (1-2): ";
+    cout << "2) Modo Ventana Grafica (GDI - Windows)\n";
+    cout << "\nElige una opcion (1-2): ";
     int modo = 0;
     cin >> modo;
-    if (modo == 2) return MODO_VENTANA;
+    if (modo == 2) {
+        cout << "Modo seleccionado: Ventana Grafica (GDI)\n";
+        return MODO_VENTANA;
+    } else {
+        cout << "Modo seleccionado: Consola\n";
+        return MODO_CONSOLA;
+    }
 #else
-    cout << "\n[INFO] Modo grafico no disponible (compilar con -DUSE_SDL)\n";
+    cout << "\n[INFO] Modo grafico no disponible (compilar con -DUSE_GDI)\n";
     cout << "[INFO] Usando modo consola por defecto.\n";
-#endif
     return MODO_CONSOLA;
+#endif
 }
 
 int main(){
@@ -2013,10 +2604,39 @@ int main(){
         case 1: {
             cout << "Compilando configuracion de Tetris y lanzando juego...\n";
             compilarJuegoSiPosible("tetris");
-#ifdef USE_SDL
+            // Ejecutar la versión gráfica adecuada si se seleccionó MODO_VENTANA
+#ifdef USE_GDI
             if (modoActual == MODO_VENTANA) {
-                TetrisEngineSDL t;
-                t.ejecutar();
+                // Build a temporary config to size window and print debug info
+                ConfigTetris cfg;
+                cfg.printConfig();
+                // desired size based on AST
+                int desired_w = cfg.ancho_tablero * cfg.tamanio_celda + 200;
+                int desired_h = cfg.alto_tablero * cfg.tamanio_celda + 200;
+                // clamp to screen size, scale cell if needed
+                int screenW = GetSystemMetrics(SM_CXSCREEN);
+                int screenH = GetSystemMetrics(SM_CYSCREEN);
+                int forced_cell = cfg.tamanio_celda;
+                if (desired_w > screenW - 100 || desired_h > screenH - 100) {
+                    double scaleW = (double)(screenW - 200) / (double)(cfg.ancho_tablero * cfg.tamanio_celda);
+                    double scaleH = (double)(screenH - 200) / (double)(cfg.alto_tablero * cfg.tamanio_celda);
+                    double scale = (scaleW < scaleH) ? scaleW : scaleH;
+                    if (scale <= 0) scale = 0.5;
+                    forced_cell = (int)(cfg.tamanio_celda * scale);
+                    if (forced_cell < 8) forced_cell = 8;
+                    desired_w = cfg.ancho_tablero * forced_cell + 200;
+                    desired_h = cfg.alto_tablero * forced_cell + 200;
+                    std::cout << "[Tetris GDI] Window would overflow screen; scaling cell from " << cfg.tamanio_celda << " to " << forced_cell << std::endl;
+                }
+                if (createGDIWindow("Tetris - Motor de Ladrillos (GDI)", desired_w, desired_h)) {
+                    TetrisEngineGDI engine(forced_cell);
+                    std::cout << "[Tetris GDI] Starting with window " << desired_w << "x" << desired_h << ", cell=" << engine.cell << std::endl;
+                    engine.run();
+                } else {
+                    // Fallback a consola
+                    TetrisEngine t;
+                    t.ejecutar();
+                }
             } else {
                 TetrisEngine t;
                 t.ejecutar();
@@ -2033,10 +2653,16 @@ int main(){
         case 2: {
             cout << "Compilando configuracion de Snake y lanzando juego...\n";
             compilarJuegoSiPosible("snake");
-#ifdef USE_SDL
+            // Ejecutar la versión gráfica adecuada si se seleccionó MODO_VENTANA
+#ifdef USE_GDI
             if (modoActual == MODO_VENTANA) {
-                SnakeEngineSDL s;
-                s.ejecutar();
+                if (createGDIWindow("Snake - Motor de Ladrillos (GDI)", 900, 700)) {
+                    SnakeEngineGDI engine;
+                    engine.run();
+                } else {
+                    SnakeEngine s;
+                    s.ejecutar();
+                }
             } else {
                 SnakeEngine s;
                 s.ejecutar();
@@ -2055,3 +2681,4 @@ int main(){
     }
     return 0;
 }
+

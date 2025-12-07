@@ -24,22 +24,22 @@ grosor_borde = 2
 
 // SISTEMA DE JUEGO
 vidas_iniciales = 1
-nivel_inicial = 1
-puntos_por_nivel = 1000
-velocidad_inicial = 800
+nivel_inicial = 0
+puntos_por_nivel = 0
+velocidad_inicial = 1000
 aceleracion_por_nivel = 50
 velocidad_caida_rapida = 50
 tiempo_fijacion_pieza = 1000
 
-// SISTEMA DE PUNTUACIÓN
-puntos_linea_simple = 100
-puntos_linea_doble = 300
-puntos_linea_triple = 500
-puntos_linea_tetris = 800
+// SISTEMA DE PUNTUACIÓN (Tetris Clásico Original)
+puntos_linea_simple = 40
+puntos_linea_doble = 100
+puntos_linea_triple = 300
+puntos_linea_tetris = 1200
 puntos_caida_rapida = 1
 puntos_por_movimiento = 0
 total_puntos = 0
-bonus_nivel_completo = 1000
+bonus_nivel_completo = 0
 
 
 // PALETA DE COLORES - Mapeo directo por pieza
@@ -266,42 +266,42 @@ tipos_piezas = ["I", "J", "L", "O", "S", "Z", "T"]
 numero_rotaciones_por_pieza = 4
 
 // COMPORTAMIENTO ESPECIAL
-modo_fantasma = true
-guardar_pieza = true
-max_piezas_guardadas = 1
-nivel_maximo = 15
+modo_fantasma = false
+guardar_pieza = false
+max_piezas_guardadas = 0
+nivel_maximo = 29
 lineas_para_nivel = 10
 
 // EFECTOS VISUALES Y SONIDO
-animacion_limpieza = true
-duracion_animacion = 200
-sonido_rotar = "click.wav"
-sonido_tetris = "fanfarria.wav"
-musica_fondo = "tetris_theme.mod"
+animacion_limpieza = false
+duracion_animacion = 0
+sonido_rotar = ""
+sonido_tetris = ""
+musica_fondo = ""
 
-// CONFIGURACIÓN DE CONTROLES
+// CONFIGURACIÓN DE CONTROLES (Tetris Clásico)
 tecla_izquierda = "a"
 tecla_derecha = "d"
 tecla_abajo = "s"
 tecla_arriba = "w"
-tecla_rotar = "r"
+tecla_rotar = "w"
 tecla_guardar = "c"
 tecla_pausa = "p"
 tecla_reiniciar = "r"
 tecla_salir = "esc"
 
 // SISTEMA DE MENSAJES
-mensaje_inicio = "¡PREPARATE PARA EL TETRIS!"
-mensaje_pausa = "PAUSA - Presiona P para continuar"
-mensaje_game_over = "¡GAME OVER! - Puntuación Final: {puntos}"
-mensaje_reiniciar = "Presiona R para reiniciar"
-mensaje_nivel = "¡NIVEL {nivel} ALCANZADO!"
-mensaje_lineas = "Líneas: {lineas}"
+mensaje_inicio = "TETRIS"
+mensaje_pausa = "PAUSE"
+mensaje_game_over = "GAME OVER"
+mensaje_reiniciar = "PRESS R TO RESTART"
+mensaje_nivel = "LEVEL {nivel}"
+mensaje_lineas = "LINES: {lineas}"
 
 // CONFIGURACIÓN DE DIFICULTAD
 gravedad_automatica = true
 tiempo_antes_de_bloquear = 1000
-permite_rotar_en_bordes = true
+permite_rotar_en_bordes = false
 castigo_lineas_incompletas = false
 
 // SISTEMA DE POWER-UPS (TIPO ENUM)
@@ -312,17 +312,17 @@ enum TipoPowerUp {
     BONUS_PUNTOS : 4
 }
 
-// CONFIGURACIÓN POWER-UPS
+// CONFIGURACIÓN POWER-UPS (Desactivados en Tetris Clásico)
 powerups_activados = false
-probabilidad_powerup = 0.1
-tipos_powerups = [1, 2, 3, 4]   // en tipado débil aceptamos números directos
+probabilidad_powerup = 0.0
+tipos_powerups = []
 
 // CONSTANTES FÍSICAS DEL JUEGO
 gravedad_base = 9.8
 friccion_rotacion = 0.85
 velocidad_maxima = 1000.0
 
-// ESTRUCTURA DE NIVELES (estructura ligera — campos sin tipos explícitos)
+// ESTRUCTURA DE NIVELES (Tetris Clásico - Velocidad aumenta cada 10 líneas)
 struct ConfigNivel {
     nivel;
     velocidad;
@@ -331,11 +331,17 @@ struct ConfigNivel {
 }
 
 niveles = [
-    { nivel: 1, velocidad: 500, puntos_requeridos: 0, color_fondo: "azul_oscuro" },
-    { nivel: 2, velocidad: 450, puntos_requeridos: 1000, color_fondo: "verde_oscuro" },
-    { nivel: 3, velocidad: 400, puntos_requeridos: 2500, color_fondo: "rojo_oscuro" },
-    { nivel: 4, velocidad: 350, puntos_requeridos: 5000, color_fondo: "morado_oscuro" },
-    { nivel: 5, velocidad: 300, puntos_requeridos: 10000, color_fondo: "naranja_oscuro" }
+    { nivel: 0, velocidad: 1000, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 1, velocidad: 793, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 2, velocidad: 618, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 3, velocidad: 473, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 4, velocidad: 355, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 5, velocidad: 262, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 6, velocidad: 190, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 7, velocidad: 135, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 8, velocidad: 94, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 9, velocidad: 64, puntos_requeridos: 0, color_fondo: "negro" },
+    { nivel: 10, velocidad: 43, puntos_requeridos: 0, color_fondo: "negro" }
 ]
 
 

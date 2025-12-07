@@ -45,13 +45,11 @@ El Motor de Ladrillos es un proyecto académico de **Teoría de Lenguajes de Pro
 ### Motor de Juegos
 
 - Renderizado sin parpadeo optimizado para consola
-
+- **Modo Consola**: Renderizado con caracteres ASCII y códigos ANSI
+- **Modo Ventana Gráfica** (opcional): Renderizado con SDL2 en ventana separada
 - Manejo de colores ANSI y Windows Console
-
 - Sistema de puntuación y niveles
-
 - Controles personalizables
-
 - Física de juego configurable
 
   
@@ -77,6 +75,10 @@ El Motor de Ladrillos es un proyecto académico de **Teoría de Lenguajes de Pro
 -  **Make** (opcional): Para usar el sistema de build con Makefile
 
 -  **Alternativa Windows**: Script `build.bat` incluido
+
+-  **SDL2** (opcional): Para modo gráfico con ventana
+   - SDL2 development libraries
+   - SDL2_ttf development libraries
 
   
 
@@ -270,13 +272,17 @@ Proyecto-TLP/
 
 | `make compilador` | Solo compilar el compilador .brik |
 
-| `make runtime` | Solo compilar el runtime |
+| `make runtime` | Solo compilar el runtime (modo consola) |
+
+| `make runtime-sdl` | Compilar runtime con SDL2 (modo gráfico) |
 
 | `make tetris` | Compila y ejecuta Tetris |
 
 | `make snake` | Compila y ejecuta Snake |
 
-| `make play` | Ejecuta el selector de juegos |
+| `make play` | Ejecuta el selector de juegos (consola) |
+
+| `make play-sdl` | Ejecuta el selector de juegos (SDL2) |
 
 | `make clean` | Limpia archivos generados |
 
@@ -296,13 +302,17 @@ Proyecto-TLP/
 
 | `build.bat compilador` | Solo compilar el compilador .brik |
 
-| `build.bat runtime` | Solo compilar el runtime |
+| `build.bat runtime` | Solo compilar el runtime (modo consola) |
+
+| `build.bat runtime-sdl` | Compilar runtime con SDL2 (modo gráfico) |
 
 | `build.bat tetris` | Compila y ejecuta Tetris |
 
 | `build.bat snake` | Compila y ejecuta Snake |
 
-| `build.bat play` | Ejecuta el selector de juegos |
+| `build.bat play` | Ejecuta el selector de juegos (consola) |
+
+| `build.bat play-sdl` | Ejecuta el selector de juegos (SDL2) |
 
 | `build.bat clean` | Limpia archivos generados |
 

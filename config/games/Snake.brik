@@ -5,9 +5,9 @@
 
 // META - Información del juego
 nombre_juego = "Snake Clasico"
-version = 2.0
+version = 1.0
 autor = "Equipo BrickEngine"
-fecha_lanzamiento = "2025-10-30"
+fecha_lanzamiento = "2025-01-01"
 
 // CONFIGURACIÓN DE PANTALLA
 ancho_pantalla = 800
@@ -15,27 +15,47 @@ alto_pantalla = 600
 color_fondo = "negro"
 fullscreen = false
 
-// CONFIGURACIÓN DEL TABLERO
-ancho_tablero = 25
+// CONFIGURACIÓN DEL TABLERO (Snake Clásico)
+ancho_tablero = 20
 alto_tablero = 20
 tamanio_celda = 20
 color_borde = "blanco"
-grosor_borde = 2
+grosor_borde = 1
 
-// CONFIGURACIÓN DE SNAKE
+// CONFIGURACIÓN DE SNAKE (Clásico)
 longitud_inicial = 3
 direccion_inicial = "derecha"
-posicion_inicial_x = 12
+posicion_inicial_x = 10
 posicion_inicial_y = 10
-velocidad_inicial = 150
+velocidad_inicial = 200
 crecimiento_por_fruta = 1
 
-// COLORES DEL JUEGO
+// COLORES DEL JUEGO (Snake Clásico)
 colores_snake = [
     "verde_claro",    // cabeza
     "verde_oscuro",   // cuerpo  
     "verde_medio"     // cola
 ]
+
+// CONFIGURACIÓN DE FRUTAS CON DIFERENTES COLORES (Snake Clásico)
+// Cada fruta tiene un color y puntos diferentes
+// Usamos formato simple para compatibilidad con el parser AST
+
+// Puntos por tipo de fruta
+puntos_manzana = 10
+puntos_cereza = 20
+puntos_banana = 15
+puntos_uva = 25
+puntos_naranja = 30
+
+// Colores por tipo de fruta
+color_manzana = "rojo"
+color_cereza = "rojo"
+color_banana = "amarillo"
+color_uva = "magenta"
+color_naranja = "naranja"
+
+// Fruta por defecto (para compatibilidad)
 color_fruta = "rojo"
 color_obstaculo = "gris"
 
@@ -48,59 +68,61 @@ tecla_pausa = "p"
 tecla_reiniciar = "r"
 tecla_salir = "esc"
 
-// REGLAS DEL JUEGO
+// REGLAS DEL JUEGO (Snake Clásico)
 terminar_al_chocar_cuerpo = true
 terminar_al_chocar_borde = true
 permitir_reversa = false
 pausar_permitido = true
 longitud_maxima = 0
 
-// SISTEMA DE PUNTUACIÓN CORREGIDO
-puntos_por_movimiento = 0        // 0 puntos por moverse (FIX del bug!)
-puntos_por_fruta = 100           // Puntos al comer fruta
-puntos_giro_exitoso = 0          // 0 puntos por girar (FIX del bug!)
-puntos_bonus_velocidad = 10      // Bonus por velocidad
+// SISTEMA DE PUNTUACIÓN (Clásico - puntos por fruta según tipo)
+puntos_por_movimiento = 0
+puntos_por_fruta = 10            // Puntos base (se sobrescribe por tipo de fruta)
+puntos_giro_exitoso = 0
+puntos_bonus_velocidad = 0
 multiplicador_combo = 1.0
 
-// CONFIGURACIÓN DE FRUTAS
-respawn_fruta_ms = 500
+// CONFIGURACIÓN DE FRUTAS (Clásico con variantes de colores)
+respawn_fruta_ms = 0
 frutas_simultaneas = 1
 frutas_disponibles = [
     "manzana",
     "cereza", 
-    "banana"
+    "banana",
+    "uva",
+    "naranja"
 ]
 
-// CONFIGURACIÓN DE OBSTÁCULOS
+// CONFIGURACIÓN DE OBSTÁCULOS (Clásico - sin obstáculos)
 bordes_solidos = true
 obstaculos_aleatorios = 0
 obstaculos_fijos = []
 
-// CONFIGURACIÓN DE NIVELES
+// CONFIGURACIÓN DE NIVELES (Clásico - sin niveles, solo velocidad aumenta)
 velocidad_minima = 50
-velocidad_maxima = 300
-aceleracion_por_fruta = 5
+velocidad_maxima = 100
+aceleracion_por_fruta = 2
 nivel_inicial = 1
-frutas_por_nivel = 5
+frutas_por_nivel = 0
 
-// CONFIGURACIÓN DE FIN DE JUEGO
+// CONFIGURACIÓN DE FIN DE JUEGO (Clásico)
 vidas_iniciales = 1
-puntos_vida_extra = 1000
-guardar_puntuacion = true
+puntos_vida_extra = 0
+guardar_puntuacion = false
 
-// EFECTOS VISUALES
-mostrar_cuadricula = true
-animacion_crecimiento = true
-parpadeo_game_over = true
-duracion_parpadeo = 100
+// EFECTOS VISUALES (Clásico - minimalista)
+mostrar_cuadricula = false
+animacion_crecimiento = false
+parpadeo_game_over = false
+duracion_parpadeo = 0
 
-// MENSAJES DEL JUEGO
-mensaje_inicio = "¡PRESIONA CUALQUIER TECLA PARA EMPEZAR!"
-mensaje_pausa = "PAUSA - Presiona P para continuar" 
-mensaje_game_over = "GAME OVER - Puntuacion: {puntos}"
-mensaje_nueva_fruta = "¡Fruta comida! +{puntos} puntos"
+// MENSAJES DEL JUEGO (Clásico)
+mensaje_inicio = "SNAKE"
+mensaje_pausa = "PAUSE"
+mensaje_game_over = "GAME OVER - Score: {puntos}"
+mensaje_nueva_fruta = ""
 
-// SISTEMA DE DIFICULTAD PROGRESIVA
+// SISTEMA DE DIFICULTAD PROGRESIVA (Clásico - velocidad aumenta con longitud)
 dificultad_progresiva = true
-incremento_velocidad = 10
-max_nivel = 10
+incremento_velocidad = 2
+max_nivel = 0
